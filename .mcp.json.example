@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mindmap": {
+      "command": "node",
+      "args": ["mcp/mindmap/dist/server.js"],
+      "env": {
+        "MINDMAP_MIRROR": "/path/to/your-vault/GBOOST/maps"
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Bastion approver (spike)",
+  "short_name": "Bastion",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#14284f",
+  "theme_color": "#14284f",
+  "icons": [{ "src": "/icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }]
+}

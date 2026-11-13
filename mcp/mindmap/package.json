@@ -1,0 +1,27 @@
+{
+  "name": "bastion-mindmap",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure core (parse, serialize, ops, lint) for Bastion mind maps",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "d3-flextree": "2.1.2",
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12"
+  },
+  "bin": {
+    "bastion-mindmap": "dist/server.js"
+  }
+}

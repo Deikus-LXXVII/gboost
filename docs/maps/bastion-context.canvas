@@ -1,0 +1,491 @@
+{
+	"nodes": [
+		{
+			"id": "nruof5",
+			"type": "text",
+			"x": 0,
+			"y": -32,
+			"width": 160,
+			"height": 64,
+			"text": "GBOOST"
+		},
+		{
+			"id": "yukfhw",
+			"type": "text",
+			"x": 280,
+			"y": -680,
+			"width": 160,
+			"height": 64,
+			"text": "Owner",
+			"color": "4"
+		},
+		{
+			"id": "w66a0k",
+			"type": "text",
+			"x": 642,
+			"y": -728,
+			"width": 172,
+			"height": 64,
+			"text": "Phone approver",
+			"color": "4"
+		},
+		{
+			"id": "ae35p0",
+			"type": "text",
+			"x": 642,
+			"y": -632,
+			"width": 160,
+			"height": 64,
+			"text": "Desktop",
+			"color": "4"
+		},
+		{
+			"id": "7kz9sv",
+			"type": "text",
+			"x": 280,
+			"y": -440,
+			"width": 160,
+			"height": 64,
+			"text": "Grok Bot",
+			"color": "1"
+		},
+		{
+			"id": "bu1k30",
+			"type": "text",
+			"x": 642,
+			"y": -536,
+			"width": 160,
+			"height": 64,
+			"text": "Bot VM",
+			"color": "1"
+		},
+		{
+			"id": "3es1gd",
+			"type": "text",
+			"x": 642,
+			"y": -440,
+			"width": 160,
+			"height": 64,
+			"text": "Grok chat",
+			"color": "1"
+		},
+		{
+			"id": "ii6d42",
+			"type": "text",
+			"x": 642,
+			"y": -344,
+			"width": 182,
+			"height": 64,
+			"text": "Routine webhook",
+			"color": "1"
+		},
+		{
+			"id": "kv2q5j",
+			"type": "text",
+			"x": 280,
+			"y": -200,
+			"width": 242,
+			"height": 64,
+			"text": "Cursor / xAI platform",
+			"color": "2"
+		},
+		{
+			"id": "22d4x0",
+			"type": "text",
+			"x": 642,
+			"y": -248,
+			"width": 202,
+			"height": 64,
+			"text": "Connector backend",
+			"color": "2"
+		},
+		{
+			"id": "cdy1m1",
+			"type": "text",
+			"x": 642,
+			"y": -152,
+			"width": 160,
+			"height": 64,
+			"text": "Model API",
+			"color": "2"
+		},
+		{
+			"id": "3nzvvl",
+			"type": "text",
+			"x": 280,
+			"y": 40,
+			"width": 192,
+			"height": 64,
+			"text": "Owner's services",
+			"color": "5"
+		},
+		{
+			"id": "i339j0",
+			"type": "text",
+			"x": 642,
+			"y": -56,
+			"width": 160,
+			"height": 64,
+			"text": "Mail",
+			"color": "5"
+		},
+		{
+			"id": "yphzcw",
+			"type": "text",
+			"x": 642,
+			"y": 40,
+			"width": 160,
+			"height": 64,
+			"text": "Calendar",
+			"color": "5"
+		},
+		{
+			"id": "xpzijq",
+			"type": "text",
+			"x": 642,
+			"y": 136,
+			"width": 160,
+			"height": 64,
+			"text": "Notes vault",
+			"color": "5"
+		},
+		{
+			"id": "u9kx5t",
+			"type": "text",
+			"x": 280,
+			"y": 328,
+			"width": 160,
+			"height": 64,
+			"text": "Plugins",
+			"color": "3"
+		},
+		{
+			"id": "5i3swe",
+			"type": "text",
+			"x": 642,
+			"y": 232,
+			"width": 160,
+			"height": 64,
+			"text": "First-party",
+			"color": "3"
+		},
+		{
+			"id": "iwticj",
+			"type": "text",
+			"x": 642,
+			"y": 328,
+			"width": 202,
+			"height": 64,
+			"text": "Community catalog",
+			"color": "3"
+		},
+		{
+			"id": "iubdze",
+			"type": "text",
+			"x": 642,
+			"y": 424,
+			"width": 160,
+			"height": 64,
+			"text": "[[Signed release with INSTALL.md. Owner gives Grok Bot the repo link; the Bot installs on the owner's Mac through the Grok desktop app. Owner steps only: admin password in the system dialog, Tailscale, QR scan + Face ID, confirm connector (gboost-method.md 6.2).|GitHub repo]]",
+			"color": "3"
+		},
+		{
+			"id": "t3ywi7",
+			"type": "text",
+			"x": 280,
+			"y": 616,
+			"width": 182,
+			"height": 64,
+			"text": "Approval points",
+			"color": "6"
+		},
+		{
+			"id": "pfbm19",
+			"type": "text",
+			"x": 642,
+			"y": 520,
+			"width": 222,
+			"height": 64,
+			"text": "Phone approval only",
+			"color": "6"
+		},
+		{
+			"id": "d9qeq5",
+			"type": "text",
+			"x": 642,
+			"y": 616,
+			"width": 272,
+			"height": 64,
+			"text": "Chat cards never approve",
+			"color": "6"
+		},
+		{
+			"id": "zzebqr",
+			"type": "text",
+			"x": 642,
+			"y": 712,
+			"width": 160,
+			"height": 64,
+			"text": "Audit log",
+			"color": "6"
+		}
+	],
+	"edges": [
+		{
+			"id": "h-nruof5-yukfhw",
+			"fromNode": "nruof5",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "yukfhw",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "4"
+		},
+		{
+			"id": "h-yukfhw-w66a0k",
+			"fromNode": "yukfhw",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "w66a0k",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "4"
+		},
+		{
+			"id": "h-yukfhw-ae35p0",
+			"fromNode": "yukfhw",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "ae35p0",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "4"
+		},
+		{
+			"id": "h-nruof5-7kz9sv",
+			"fromNode": "nruof5",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "7kz9sv",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "1"
+		},
+		{
+			"id": "h-7kz9sv-bu1k30",
+			"fromNode": "7kz9sv",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "bu1k30",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "1"
+		},
+		{
+			"id": "h-7kz9sv-3es1gd",
+			"fromNode": "7kz9sv",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "3es1gd",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "1"
+		},
+		{
+			"id": "h-7kz9sv-ii6d42",
+			"fromNode": "7kz9sv",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "ii6d42",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "1"
+		},
+		{
+			"id": "h-nruof5-kv2q5j",
+			"fromNode": "nruof5",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "kv2q5j",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "2"
+		},
+		{
+			"id": "h-kv2q5j-22d4x0",
+			"fromNode": "kv2q5j",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "22d4x0",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "2"
+		},
+		{
+			"id": "h-kv2q5j-cdy1m1",
+			"fromNode": "kv2q5j",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "cdy1m1",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "2"
+		},
+		{
+			"id": "h-nruof5-3nzvvl",
+			"fromNode": "nruof5",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "3nzvvl",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "5"
+		},
+		{
+			"id": "h-3nzvvl-i339j0",
+			"fromNode": "3nzvvl",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "i339j0",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "5"
+		},
+		{
+			"id": "h-3nzvvl-yphzcw",
+			"fromNode": "3nzvvl",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "yphzcw",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "5"
+		},
+		{
+			"id": "h-3nzvvl-xpzijq",
+			"fromNode": "3nzvvl",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "xpzijq",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "5"
+		},
+		{
+			"id": "h-nruof5-u9kx5t",
+			"fromNode": "nruof5",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "u9kx5t",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "3"
+		},
+		{
+			"id": "h-u9kx5t-5i3swe",
+			"fromNode": "u9kx5t",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "5i3swe",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "3"
+		},
+		{
+			"id": "h-u9kx5t-iwticj",
+			"fromNode": "u9kx5t",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "iwticj",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "3"
+		},
+		{
+			"id": "h-u9kx5t-iubdze",
+			"fromNode": "u9kx5t",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "iubdze",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "3"
+		},
+		{
+			"id": "h-nruof5-t3ywi7",
+			"fromNode": "nruof5",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "t3ywi7",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "6"
+		},
+		{
+			"id": "h-t3ywi7-pfbm19",
+			"fromNode": "t3ywi7",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "pfbm19",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "6"
+		},
+		{
+			"id": "h-t3ywi7-d9qeq5",
+			"fromNode": "t3ywi7",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "d9qeq5",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "6"
+		},
+		{
+			"id": "h-t3ywi7-zzebqr",
+			"fromNode": "t3ywi7",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "zzebqr",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "6"
+		},
+		{
+			"id": "x-w66a0k-pfbm19",
+			"fromNode": "w66a0k",
+			"fromSide": "bottom",
+			"toNode": "pfbm19",
+			"toSide": "top",
+			"toEnd": "arrow",
+			"label": "approves"
+		},
+		{
+			"id": "x-nruof5-ii6d42",
+			"fromNode": "nruof5",
+			"fromSide": "right",
+			"toNode": "ii6d42",
+			"toSide": "left",
+			"toEnd": "arrow",
+			"label": "wakes the Bot"
+		},
+		{
+			"id": "x-3es1gd-22d4x0",
+			"fromNode": "3es1gd",
+			"fromSide": "bottom",
+			"toNode": "22d4x0",
+			"toSide": "top",
+			"toEnd": "arrow",
+			"label": "calls GBOOST via connector"
+		},
+		{
+			"id": "x-7kz9sv-iubdze",
+			"fromNode": "7kz9sv",
+			"fromSide": "right",
+			"toNode": "iubdze",
+			"toSide": "left",
+			"toEnd": "arrow",
+			"label": "installs from"
+		}
+	]
+}

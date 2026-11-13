@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bastion approver</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bastion">
+<style>
+  body { font: 16px -apple-system, system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f5f7; color: #111; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  .card { background: #fff; border-radius: 12px; padding: 14px; margin: 10px 0; box-shadow: 0 1px 3px #0002; }
+  .card.click { cursor: pointer; }
+  .row { display: flex; gap: 10px; margin-top: 12px; }
+  button { flex: 1; font-size: 17px; padding: 14px; border-radius: 12px; border: 0; background: #14284f; color: #fff; }
+  button.decline { background: #fff; color: #a00; border: 2px solid #a00; }
+  button:disabled { opacity: .4; }
+  input { font-size: 20px; padding: 10px; width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #999; }
+  .label { color: #666; font-size: 13px; margin-top: 8px; }
+  .val { white-space: pre-wrap; word-break: break-word; }
+  .body { max-height: 40vh; overflow: auto; border: 1px solid #ddd; border-radius: 8px; padding: 8px; background: #fafafa; }
+  .mono { font: 12px ui-monospace, monospace; word-break: break-all; }
+  .msg { margin: 10px 0; padding: 10px; border-radius: 8px; background: #fff3cd; }
+  .ok { background: #d4edda; }
+  small { color: #666; }
+</style>
+</head>
+<body>
+<h1>Bastion approver <small>(spike)</small></h1>
+<div id="msg"></div>
+<div id="app"></div>
+<div id="tools"></div>
+<script src="/app.js"></script>
+</body>
+</html>

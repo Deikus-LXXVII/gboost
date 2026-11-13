@@ -1,0 +1,21 @@
+package bastion:plugin@0.1.0;
+
+interface http {
+  record response { status: u16, body: string }
+  fetch: func(url: string) -> result<response, string>;
+}
+
+interface types {
+  record mail { to: list<string>, subject: string, body: string }
+  record note { path: string, text: string }
+  variant effect {
+    mail-send(mail),
+    note-write(note),
+  }
+}
+
+world plugin {
+  import http;
+  use types.{effect};
+  export prepare: func(tool: string, params: string) -> result<effect, string>;
+}
