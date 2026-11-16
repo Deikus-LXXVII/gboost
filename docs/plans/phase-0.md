@@ -237,3 +237,15 @@ on disk, so restarts and VM hibernation do not need a new login.
   private copy, uploads as a draft and then publishes. release.yml is now started by hand.
 - VPS standby node `vps` installed by Цитри (S7), answers 401 without a key over the tailnet, standby
   (no routine.toml). Still to do: add it to the client's node list and the failover check (owner's OK).
+- S7 failover live (Цитри, 23:19 Berlin): home stopped, `gboost_status` served by vps; home back in about
+  20 s; the connector recovered by itself. Findings: (1) the client stayed on vps a minute after home
+  returned (likely the first return attempt hit home before its HTTPS was ready, which restarts the 60 s
+  back-off; the client now writes client.log to show it); (2) the standby had no routine.toml, so it could
+  not open sessions. Owner decision: every node, the standby included, gets routine.toml (INSTALL.md).
+- Client self-update (plan 6.7 item 7) and S7 client fixes, Grok review of d440457: fixed a window where a
+  connector could start a client version under test (`current` now moves only after the self-test), start
+  and stop finishing an interrupted switch, the self-test finding Tailscale and the client folder exactly
+  as the connector does (update.json `client.home`), local faults not blocking a release, the wrong
+  STOPPED message, and failure flags kept after a later success. Known limit: on Windows the owner-only
+  modes of client.log, tools.json and the entry points are not ACLs (the client is not supported on
+  Windows yet; the node's files have the same limit).

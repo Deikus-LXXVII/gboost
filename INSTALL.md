@@ -230,7 +230,8 @@ computer, and adding the new devices to their tailnet.
      Without Homebrew, **ask the owner**.
    - **Windows:** not supported yet in this test. Tell the owner and stop.
 2. Build the core (step 3 above) and pick two free ports (step 4). On the primary node also write
-   `routine.toml` (step 5). A standby node gets no `routine.toml`.
+   `routine.toml` (step 5). A standby node gets the same `routine.toml`, copied file to file (never through
+   chat): sessions belong to a node, so after a failover the standby must open a new session itself.
 3. Start the node. `<name>` is short and unique, for example `home` or `vps`:
 
        mkdir -p -m 700 ~/.gboost/node

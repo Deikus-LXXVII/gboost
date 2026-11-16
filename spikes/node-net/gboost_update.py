@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GBOOST updater for a node (spike S11, plan 6.7). Python 3.9+ stdlib only.
+"""GBOOST updater for a node or a client (spike S11, plan 6.7). Python 3.9+ stdlib only.
 
 Layout under --root (default ~/.gboost/app), all owner-only:
   versions/<version>/   unpacked release packages (VERSION, SCHEMA, bin/, node-net/, release.pub)
@@ -8,7 +8,19 @@ Layout under --root (default ~/.gboost/app), all owner-only:
   history.json          [{"version", "time", "failed"?, "rolled_back"?}], oldest first
   snapshots/<name>/     state copies taken (with the node stopped) before a schema change
   update.json           {"source": {"github": "<owner>/<repo>"} | {"dir": "<folder>"}, "target": "<os>-<cpu>",
+                         "role": "node" (default) | "client", "client": {"home": "<the connector's
+                         GBOOST_CLIENT_HOME, default ~/.gboost-client>"},
                          "node": {"name", "state", "agent_port", "owner_port", "ts_bin_dir", "no_tailscale"}}
+  gboost-client.py      stable entry points that run the current version (rewritten on every switch):
+  gboost-update.py      the connector's command is `python3 -I <root>/gboost-client.py`, so updates never
+                        change the connector; `python3 -I <root>/gboost-update.py apply` updates.
+
+Role "client" (the connector on the Bot's computer): nothing to start or stop, the connector runs it; the
+health check is the new version's offline self-test (`gboost_client.py selftest`, run against the
+connector's client folder), and only after it passes does `current` move, so no connector ever starts an
+unchecked version. A self-test that reports a local fault (config, key, Tailscale) does not block that
+release: it is tried again once the computer is fixed. Clients already running keep their old code until
+they restart (the old version stays on disk).
 
 Commands:
   install <package.tar.gz>   first install of a trusted package (from the release the Bot verified)
@@ -30,6 +42,21 @@ KEEP = 3
 HEALTH_S = float(os.environ.get("GBOOST_HEALTH_S", "30"))
 MAX_DOWNLOAD = 200 * 1024 * 1024
 VERSION_RE = re.compile(r"^\d{1,6}\.\d{1,6}\.\d{1,6}$")
+
+
+LAUNCHER = """#!/usr/bin/env python3
+# GBOOST entry point written by gboost_update.py: runs %(script)s of the current version, in this process
+# (stdin and stdout stay the connector's). Do not edit; an update rewrites it.
+import os, re, runpy, sys
+root = os.path.dirname(os.path.abspath(__file__))
+v = open(os.path.join(root, "current")).read().strip()
+if not re.fullmatch(r"\\d{1,6}\\.\\d{1,6}\\.\\d{1,6}", v):
+    sys.exit("gboost: bad current version")
+script = os.path.join(root, "versions", v, "node-net", "%(script)s")
+sys.path.insert(0, os.path.dirname(script))
+sys.argv = [script] + %(extra)s + sys.argv[1:]
+runpy.run_path(script, run_name="__main__")
+"""
 
 
 class UpdateError(Exception):
@@ -104,7 +131,11 @@ class Updater:
         for d in ("versions", "snapshots", "downloads"):
             private_dir(self.p(d))
         self.cfg = self.read_json("update.json", {})
+        self.role = self.cfg.get("role", "node")
+        if self.role not in ("node", "client"):
+            raise UpdateError("update.json: role must be node or client")
         self.proc = None  # the launcher we started in this process, if any
+        self.last_local_fault = False  # the last client self-test failed with a reported local fault
 
     def p(self, *parts):
         return os.path.join(self.root, *parts)
@@ -162,7 +193,13 @@ class Updater:
         self.write_json("history.json", h)
 
     def blocked(self):
-        return {x["version"] for x in self.history() if x.get("failed") or x.get("rolled_back")}
+        # A client release that failed only on a local fault (its self-test said what is wrong here) is not
+        # blocked: it is retried after the owner fixes the computer.
+        return {x["version"] for x in self.history()
+                if (x.get("failed") and not x.get("local_fault")) or x.get("rolled_back")}
+
+    def client_home(self):
+        return os.path.abspath(os.path.expanduser((self.cfg.get("client") or {}).get("home") or os.path.join("~", ".gboost-client")))
 
     # --- the launcher process ---
 
@@ -173,8 +210,15 @@ class Updater:
         except (OSError, ValueError, KeyError, TypeError):
             return None, None
 
+    def write_launchers(self):
+        for name, script, extra in (("gboost-client.py", "gboost_client.py", "[]"),
+                                    ("gboost-update.py", "gboost_update.py", repr(["--root", self.root]))):
+            write_file_atomic(self.p(name), LAUNCHER % {"script": script, "extra": extra}, mode=0o700)
+
     def alive(self):
         """Is our launcher running? Checks that the PID still belongs to it (stop file path on its line)."""
+        if self.role == "client":
+            return False  # nothing of ours runs: the connector starts clients
         if self.proc is not None:
             return self.proc.poll() is None
         pid, tag = self.pid_info()
@@ -196,6 +240,8 @@ class Updater:
         v = self.current()
         if not v:
             raise UpdateError("nothing installed")
+        if self.role == "client":
+            return
         if self.alive():
             raise UpdateError("the node is already running")
         n = self.cfg.get("node") or {}
@@ -256,7 +302,21 @@ class Updater:
             pass
 
     def healthy(self, want_version):
-        """The launcher is alive and the core answers /healthz with the expected version."""
+        """The launcher is alive and the core answers /healthz with the expected version (node), or the
+        version's offline self-test passes (client)."""
+        if self.role == "client":
+            script = self.p("versions", want_version, "node-net", "gboost_client.py")
+            self.last_local_fault = False
+            env = dict(os.environ, GBOOST_CLIENT_HOME=self.client_home())  # the connector's folder, not ours
+            try:
+                r = subprocess.run([sys.executable, "-I", script, "selftest"], capture_output=True, text=True,
+                                   encoding="utf-8", timeout=HEALTH_S, env=env, cwd=self.client_home())
+            except (OSError, subprocess.TimeoutExpired) as e:
+                return False, "self-test did not run: %s" % e
+            if r.returncode == 0 and r.stdout.strip() == "SELFTEST OK " + want_version:
+                return True, "ok"
+            self.last_local_fault = r.returncode == 1 and r.stdout.startswith("SELFTEST FAILED")
+            return False, "self-test: " + (r.stdout + r.stderr).strip()[-300:]
         port = (self.cfg.get("node") or {}).get("owner_port")
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         end = time.time() + HEALTH_S
@@ -352,7 +412,7 @@ class Updater:
             if not self.stop():
                 raise UpdateError("could not stop the running node")
             snap = None
-            if restore_first or self.schema_of(old) != self.schema_of(new):
+            if self.role == "node" and (restore_first or self.schema_of(old) != self.schema_of(new)):
                 snap = self.snapshot("%d-from-%s-to-%s" % (int(time.time()), old, new))
                 p = self.read_json("pending.json", {})
                 p["snap"] = snap
@@ -360,17 +420,31 @@ class Updater:
             if restore_first:
                 self.restore(restore_first)
                 self.say("RESTORED state snapshot %s" % os.path.basename(restore_first))
-            write_file_atomic(self.p("current"), new)
-            self.start()
-            ok, why = self.healthy(new)
+            if self.role == "client":
+                # Check first, move `current` only after: a connector starting meanwhile never runs `new`
+                # unchecked. Nothing changed yet if it fails.
+                ok, why = self.healthy(new)
+                if ok:
+                    write_file_atomic(self.p("current"), new)
+                    self.write_launchers()
+            else:
+                write_file_atomic(self.p("current"), new)
+                self.write_launchers()
+                self.start()
+                ok, why = self.healthy(new)
         except Exception as e:  # noqa: BLE001 - any failure here must end in the old version running
             ok, why = False, "%s: %s" % (type(e).__name__, e)
         if ok:
             os.remove(self.p("pending.json"))
+            self.mark(new, failed=False, local_fault=False)  # it works here now (e.g. after a local fix)
             self.say("OK %s %s -> %s" % (reason, old, new))
             return True
         self.say("FAILED %s %s: %s; going back to %s" % (reason, new, why, old))
-        self.mark(new, failed=True)
+        if self.role == "client" and self.last_local_fault:
+            self.mark(new, failed=True, local_fault=True)
+            self.say("LOCAL FAULT the new client reports a problem on this computer; fix it and %s is tried again" % new)
+        else:
+            self.mark(new, failed=True, local_fault=False)  # a real failure blocks it, even after a local one
         self.undo_pending()
         return False
 
@@ -384,12 +458,16 @@ class Updater:
         if p.get("snap") and os.path.isdir(p["snap"]):
             self.restore(p["snap"])
         write_file_atomic(self.p("current"), old)
+        self.write_launchers()
         self.start()
         ok, why = self.healthy(old)
         os.remove(self.p("pending.json"))
         if not ok:
-            self.stop()
-            self.say("STOPPED %s failed its check too (%s); the owner must look" % (old, why))
+            if self.role == "client":
+                self.say("BROKEN client %s fails its check too (%s); connectors still run it; the owner must look" % (old, why))
+            else:
+                self.stop()
+                self.say("STOPPED %s failed its check too (%s); the owner must look" % (old, why))
             raise SystemExit(3)
         self.say("ROLLED BACK to %s" % old)
 
@@ -523,6 +601,12 @@ class Updater:
         if not newer:
             self.say("UP TO DATE %s" % self.current())
             return True
+        if self.role == "client":
+            # If the running client fails its self-test, the fault is here (config, key, Tailscale), not in
+            # the release: fix it first, and do not blame the release by marking it failed.
+            ok, why = self.healthy(self.current())
+            if not ok:
+                raise UpdateError("the installed client %s fails its own check (%s); fix that first" % (self.current(), why))
         v = m["version"]
         name = "gboost-%s-%s.tar.gz" % (v, self.cfg.get("target") or target())
         if name not in m["files"]:
@@ -557,7 +641,7 @@ class Updater:
         if to not in older:
             raise UpdateError("%s is not an earlier version that worked here" % to)
         restore = None
-        if self.schema_of(to) != self.schema_of(cur):
+        if self.role == "node" and self.schema_of(to) != self.schema_of(cur):
             snaps = sorted(d for d in os.listdir(self.p("snapshots")) if d.endswith("-from-%s-to-%s" % (to, cur)))
             if not snaps:
                 raise UpdateError("%s uses another state schema and no snapshot from that update is kept" % to)
@@ -593,6 +677,7 @@ class Updater:
             raise UpdateError("the package carries a different release key")
         self.mark(v)
         write_file_atomic(self.p("current"), v)
+        self.write_launchers()
         self.say("INSTALLED %s" % v)
 
 
@@ -622,6 +707,9 @@ def main():
         with Lock(u.p("update.lock")):
             if a.cmd == "install":
                 u.install(a.package, a.manifest, a.tool, a.pubkey)
+            elif a.cmd in ("start", "stop") and u.role == "client":
+                u.recover()  # finish or undo an interrupted switch first
+                u.say("CLIENT nothing to %s: the connector runs %s" % (a.cmd, u.p("gboost-client.py")))
             elif a.cmd == "start":
                 if not u.recover():
                     u.start()

@@ -42,6 +42,8 @@ jobs:
           cargo build --locked --manifest-path spikes/release/Cargo.toml
           ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
           python -I spikes/node-net/test_update.py "spikes/bot-client/core/target/debug/gboost-s9-core$ext" "spikes/release/target/debug/gboost-release$ext"
+          python -I spikes/node-net/test_client_start.py
+          python -I spikes/node-net/test_client_update.py "spikes/bot-client/core/target/debug/gboost-s9-core$ext" "spikes/release/target/debug/gboost-release$ext"
       - name: client failover across two cores (S10)
         if: matrix.crate == 'spikes/bot-client/core'
         run: python -I spikes/node-net/test_failover.py "${{ github.workspace }}/spikes/bot-client/core/target/debug/gboost-s9-core${{ runner.os == 'Windows' && '.exe' || '' }}"

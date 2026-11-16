@@ -6,7 +6,7 @@
 Run it from a clean checkout of the tag v<version> (it refuses uncommitted changes or another commit), so
 the packages are exactly the tagged code; the commit is written to dist/<version>/BUILD_COMMIT and
 publish.py checks it against the tag on GitHub. Builds the core and the release tool for each target: the host's own target natively, Linux targets from
-macOS with cargo-zigbuild. Runs the update and rollback rehearsal (spikes/node-net/test_update.py) on this
+macOS with cargo-zigbuild. Runs the update and rollback rehearsals (node and client, spikes/node-net/test_*update.py) on this
 computer, and for Linux binaries this computer cannot run, on --linux-test-host over ssh (a fresh temporary
 folder there, removed afterwards). Then packages every target and writes the manifest into
 dist/<version>/. Sign and publish that folder with spikes/release/publish.py --local dist/<version>.
@@ -19,6 +19,7 @@ CRATES = {"core": ("spikes/bot-client/core", "gboost-s9-core"), "tool": ("spikes
 TRIPLES = {"linux-x86_64": "x86_64-unknown-linux-gnu", "linux-arm64": "aarch64-unknown-linux-gnu",
            "macos-arm64": "aarch64-apple-darwin", "macos-x86_64": "x86_64-apple-darwin",
            "windows-x86_64": "x86_64-pc-windows-msvc", "windows-arm64": "aarch64-pc-windows-msvc"}
+REHEARSALS = ("test_update.py", "test_client_update.py")  # node update/rollback, client self-update
 CPU = {"arm64": "arm64", "aarch64": "arm64", "x86_64": "x86_64", "amd64": "x86_64"}
 
 
@@ -60,7 +61,8 @@ def build(target, host):
 
 
 def rehearse_local(target):
-    run(sys.executable, "-I", os.path.join(ROOT, "spikes/node-net/test_update.py"), binary(target, "core"), binary(target, "tool"))
+    for test in REHEARSALS:
+        run(sys.executable, "-I", os.path.join(ROOT, "spikes/node-net", test), binary(target, "core"), binary(target, "tool"))
 
 
 def remote(host, cmd):
@@ -82,7 +84,8 @@ def rehearse_remote(target, host):
     try:
         run("scp", "-q", binary(target, "core"), binary(target, "tool"), host + ":" + tmp + "/")
         run("scp", "-q", "-r", os.path.join(ROOT, "spikes/node-net"), host + ":" + tmp + "/")
-        run("ssh", "-o", "BatchMode=yes", host, "cd %s && python3 -I node-net/test_update.py ./gboost-s9-core ./gboost-release" % q)
+        for test in REHEARSALS:
+            run("ssh", "-o", "BatchMode=yes", host, "cd %s && python3 -I node-net/%s ./gboost-s9-core ./gboost-release" % (q, test))
     finally:
         subprocess.run(["ssh", "-o", "BatchMode=yes", host, "rm -rf -- " + q])
     return True

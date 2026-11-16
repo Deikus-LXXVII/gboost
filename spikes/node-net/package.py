@@ -16,6 +16,7 @@ def main():
     ap = argparse.ArgumentParser()
     for k in ("version", "schema", "target", "core", "release_tool", "pubkey", "out"):
         ap.add_argument("--" + k.replace("_", "-"), required=True)
+    ap.add_argument("--py-dir", default=HERE, help="where the node-net Python files come from (tests)")
     a = ap.parse_args()
     exe = ".exe" if a.target.startswith("windows") else ""
     top = "gboost-%s-%s" % (a.version, a.target)
@@ -38,7 +39,7 @@ def main():
         add_bytes(t, "bin/gboost-s9-core" + exe, open(a.core, "rb").read(), 0o755)
         add_bytes(t, "bin/gboost-release" + exe, open(a.release_tool, "rb").read(), 0o755)
         for f in PY:
-            add_bytes(t, "node-net/" + f, open(os.path.join(HERE, f), "rb").read(), 0o755)
+            add_bytes(t, "node-net/" + f, open(os.path.join(a.py_dir, f), "rb").read(), 0o755)
     print(out)
 
 

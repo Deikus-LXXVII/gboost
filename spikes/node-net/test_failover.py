@@ -127,7 +127,12 @@ step("no node: clear error", "error" in r and "No GBOOST node" in r["error"]["me
 
 cl.stdin.close(); cl.wait(5)
 err = cl.stderr.read()
-step("client log has no key", key.split(":")[1] not in err, "")
+step("client stderr has no key", key.split(":")[1] not in err, "")
+flog = open(os.path.join(home, "client.log"), encoding="utf-8").read()
+step("client.log records the switch and the return, with no key",
+     "using node 1" in flog and flog.count("using node 0") >= 2 and key.split(":")[1] not in flog, flog)
+if os.name != "nt":
+    step("client.log is owner-only", oct(os.stat(os.path.join(home, "client.log")).st_mode & 0o777) == "0o600")
 
 # A node behind `tailscale serve` whose core died answers 502; an MCP server may answer with SSE.
 import threading
@@ -145,6 +150,7 @@ class Sse(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_POST(self):
         m = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        SEEN.append(m.get("method"))
         if "id" not in m:
             self.send_response(202); self.send_header("Content-Length", "0"); self.end_headers(); return
         res = {"protocolVersion": "2025-06-18", "capabilities": {}, "serverInfo": {"name": "sse", "version": "0"}} \
@@ -155,6 +161,7 @@ class Sse(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+SEEN = []
 bad, sse = HTTPServer(("127.0.0.1", 0), Bad), HTTPServer(("127.0.0.1", 0), Sse)
 for srv in (bad, sse):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -163,9 +170,12 @@ json.dump({"nodes": ["http://127.0.0.1:%d/mcp" % bad.server_port, "http://127.0.
 cl = subprocess.Popen([sys.executable, "-I", os.path.join(HERE, "gboost_client.py")], env=env,
                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
 r = call("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}})
-step("502 node is skipped, SSE answer parsed", r.get("result", {}).get("serverInfo", {}).get("name") == "sse", r)
+step("initialize is answered by the client at once", r.get("result", {}).get("serverInfo", {}).get("name") == "gboost"
+     and SEEN == [], (r, SEEN))
 r = call("tools/call", {"name": "x", "arguments": {}})
-step("tool call over SSE", r.get("result", {}).get("content", [{}])[0].get("text") == "sse ok", r)
+step("502 node skipped; initialize replayed to the next node; tool call over SSE",
+     r.get("result", {}).get("content", [{}])[0].get("text") == "sse ok"
+     and SEEN[:3] == ["initialize", "notifications/initialized", "tools/call"], (r, SEEN))
 cl.stdin.write("not json\n"); cl.stdin.flush()
 r = json.loads(cl.stdout.readline())
 step("bad input gets a parse error, client stays up", r.get("error", {}).get("code") == -32700 and cl.poll() is None, r)

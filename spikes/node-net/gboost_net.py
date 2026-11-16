@@ -102,19 +102,26 @@ class Device:
             pass
         self.adopted = False
         self.proxy_port = free_port()
-        with open(port_file, "w") as f:
-            f.write(str(self.proxy_port))
         with open(self.log_path, "ab") as log:
             self.proc = subprocess.Popen(
                 [self.tailscaled, "--tun=userspace-networking", "--statedir=" + self.state_dir,
                  "--socket=" + self.socket, "--port=0",
-                 "--outbound-http-proxy-listen=127.0.0.1:%d" % self.proxy_port],
+                 "--outbound-http-proxy-listen=127.0.0.1:%d" % self.proxy_port]
+                # Windows: a per-user daemon on our own named pipe, no service, no admin (Tailscale >= 1.104;
+                # docs/research/windows-userspace-tailscale.md). Not yet run on Windows.
+                + (["--windows-mode=dev"] if os.name == "nt" else []),
                 stdout=log, stderr=log, stdin=subprocess.DEVNULL)
+        with open(os.path.join(self.state_dir, "tailscaled.pid"), "w") as f:
+            f.write(str(self.proc.pid))
         for _ in range(100):
             if self.proc.poll() is not None:
                 raise RuntimeError("tailscaled exited; see " + self.log_path)
             try:
                 self.status()
+                tmp = port_file + ".tmp"
+                with open(tmp, "w") as f:
+                    f.write(str(self.proxy_port))
+                os.replace(tmp, port_file)  # others adopt it only once it answers
                 return
             except Exception:
                 time.sleep(0.1)
@@ -161,6 +168,57 @@ class Device:
             out = out.decode("utf-8", "replace") if isinstance(out, bytes) else out
             links = [w for w in out.split() if w.startswith("https://login.tailscale.com/")]
             raise RuntimeError("ENABLE " + (links[0] if links else "HTTPS and Serve in the tailnet admin console"))
+
+    def health(self):
+        """"hung" (no answer), "needs_login" (waiting for the owner: never restart it), "offline" (Running but
+        reports itself offline, or stopped), or "online" (also while starting)."""
+        try:
+            st = self.status()
+        except Exception:
+            return "hung"
+        state = st.get("BackendState")
+        if state in ("NeedsLogin", "NeedsMachineAuth"):
+            return "needs_login"
+        if state == "Stopped" or (state == "Running" and (st.get("Self") or {}).get("Online") is False):
+            return "offline"
+        return "online"
+
+    def online(self):
+        return self.health() == "online"
+
+    def _our_daemon(self, pid):
+        """True only if `pid` runs tailscaled with exactly our --statedir (PIDs get reused)."""
+        if os.name == "nt":
+            return False  # no safe check here yet: never kill on Windows
+        r = subprocess.run(["ps", "-o", "args=", "-p", str(pid)], capture_output=True, text=True)
+        args = r.stdout.split()
+        return bool(args) and os.path.basename(args[0]) == "tailscaled" and ("--statedir=" + self.state_dir) in args
+
+    def restart(self):
+        """Replace a hung or offline tailscaled (ours, possibly started by another GBOOST process sharing this
+        state folder). Call under a Lock. Kills only a process proven to be ours, and starts a new one only
+        once the old one is gone; otherwise raises and leaves everything as it was."""
+        try:
+            pid = int(open(os.path.join(self.state_dir, "tailscaled.pid")).read().strip())
+        except (OSError, ValueError):
+            raise RuntimeError("no record of the running tailscaled; not restarting it")
+        if not self._our_daemon(pid):
+            raise RuntimeError("the recorded tailscaled is not ours or cannot be checked here; not restarting it")
+        os.kill(pid, 15)
+        for _ in range(50):
+            if not self._our_daemon(pid):
+                break
+            time.sleep(0.1)
+        else:
+            if self._our_daemon(pid):  # checked again right before the hard kill
+                os.kill(pid, 9)
+                time.sleep(0.5)
+        if self._our_daemon(pid):
+            raise RuntimeError("the old tailscaled did not exit; not starting a second one")
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+        self.proc = None
+        self.start()
 
     def proxy_url(self):
         return "http://127.0.0.1:%d" % self.proxy_port
