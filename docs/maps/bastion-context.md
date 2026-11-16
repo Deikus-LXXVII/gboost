@@ -29,7 +29,7 @@ links:
 - Plugins <!-- id:u9kx5t color:3 -->
   - First-party <!-- id:5i3swe -->
   - Community catalog <!-- id:iwticj -->
-  - GitHub repo <!-- id:iubdze note:"INSTALL.md at the repo root. Owner gives Grok Bot the repo link; the Bot detects the OS, builds, starts the core and asks the owner only for secrets (secure input), missing tools and the connector header. Works on Windows, macOS, Linux or a VPS (gboost-method.md 6.2)." -->
+  - GitHub repo <!-- id:iubdze note:"INSTALL.md at the repo root. Owner gives Grok Bot the repo link; the Bot detects the OS, builds, starts the core, adds the gboost connector itself and asks the owner only for missing tools and secrets it cannot read (secure input). Works on Windows, macOS, Linux or a VPS (gboost-method.md 6.2)." -->
 - Approval points <!-- id:t3ywi7 color:6 -->
   - Phone approval only <!-- id:pfbm19 -->
   - Chat cards never approve <!-- id:d9qeq5 -->

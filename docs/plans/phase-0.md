@@ -49,6 +49,10 @@ S1 and S2 run now. S3 to S8 are stop points: the agent prepares everything, then
   single commit (author: GitHub noreply) so the local history, which holds the owner's email and network
   addresses, stays private. Until this repository moves to GitHub as its origin, updates are exported the
   same way (`git archive` into the public clone), with a scan for private data before each push.
+- 2026-11-16 (owner): public project, no tailoring to one owner's machines; every install goes through Grok
+  Bot from the GitHub link. `INSTALL.md` (root) is the Bot's procedure for the S9 core on Windows, macOS,
+  Linux or a VPS. CI runs the tests on all three OSes (green at public commit 0ab2183). Next: the owner
+  gives the Bot the link; the live S9 test (does Grok reach a tailnet-only URL) follows that install.
 - 2026-11-13 (owner, second round): plan revised for phone first, platforms and nodes (merged from
   `gboost-nodes-phone.md`; plan D10 to D15). Phone-only install by an owner-pasted cloud-init block and an
   owner-made enrolment code; the Bot never logs in there. The owner's own nodes: the Bot installs the primary

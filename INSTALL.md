@@ -106,7 +106,8 @@ the routine hands the code back. This proves the caller is the owner's own Bot.
    > When woken by GBOOST with kind `session_check`, call the gboost connector's tool `gboost_deliver_code`
    > with the code from the payload, unchanged.
 
-2. **Ask the owner** for the routine's webhook URL and key through Grok's secure input field, never in chat.
+2. If you created the routine and can read its webhook URL and key, use them. Otherwise **ask the owner** for
+   them through Grok's secure input field, never in chat.
 3. Write them to `routine.toml` in the state folder with your file-writing tool, not with a shell command
    (a shell command would leave the key in the shell history). On macOS and Linux, run `chmod 600` on the
    file afterwards; the state folder is already closed to other users (step 2).
@@ -169,16 +170,22 @@ Windows (PowerShell):
 The answer shows the client id, its fingerprint and the file path. The key is in `new-client.txt` in the state
 folder.
 
-## 9. Owner adds the connector
+## 9. Add the connector
 
-**Ask the owner** to do the following in Grok's connector settings, and give them the URL from step 7 and the
-file path from step 8:
+Add the connector yourself:
 
-1. Add a custom connector: type **Remote HTTPS**, name `gboost`, the URL from step 7.
-2. Add the header `x-gboost-client`. Its value is the full content of `new-client.txt`. No OAuth.
+1. Add a custom connector: type **Remote HTTPS**, name `gboost`, the URL from step 7. No OAuth.
+2. Add the header `x-gboost-client`. Its value is the full content of `new-client.txt` from step 8. Read the
+   file straight into the connector settings; do not show the value in chat.
 3. Turn the `gboost` connector on for the routine from step 5 too.
 
-Once the owner confirms, delete `new-client.txt`.
+If a `gboost` connector already exists, for example from an earlier install, update its URL and header
+instead of adding a second one. There must be exactly one `gboost` connector.
+
+If you cannot add or change connectors, **ask the owner** to do these steps in Grok's connector settings. Give
+them the URL and the file path, not the key.
+
+When the connector is in place, delete `new-client.txt`.
 
 ## 10. Check that it works
 

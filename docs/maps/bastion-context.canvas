@@ -216,7 +216,7 @@
 			"y": 448,
 			"width": 160,
 			"height": 64,
-			"text": "[[INSTALL.md at the repo root. Owner gives Grok Bot the repo link; the Bot detects the OS, builds, starts the core and asks the owner only for secrets (secure input), missing tools and the connector header. Works on Windows, macOS, Linux or a VPS (gboost-method.md 6.2).|GitHub repo]]",
+			"text": "[[INSTALL.md at the repo root. Owner gives Grok Bot the repo link; the Bot detects the OS, builds, starts the core, adds the gboost connector itself and asks the owner only for missing tools and secrets it cannot read (secure input). Works on Windows, macOS, Linux or a VPS (gboost-method.md 6.2).|GitHub repo]]",
 			"color": "3"
 		},
 		{
