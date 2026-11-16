@@ -6,7 +6,7 @@
 
 Writes <out>/gboost-<version>-<target>.tar.gz with: VERSION, SCHEMA, release.pub, bin/, node-net/.
 """
-import argparse, io, os, tarfile
+import argparse, io, os, sys, tarfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PY = ["gboost_net.py", "gboost_node.py", "gboost_client.py", "gboost_update.py"]

@@ -774,6 +774,14 @@ Bot never sees an outage.
    plugins, 5.5).
 10. **The release key** (owner, 2026-11-16) is kept on the maintainer's own computer, encrypted, and used
    by one command after CI has built the files; never in CI (P10).
+   **Revised (owner, 2026-11-16):** the maintainer's coding agent may sign and publish releases with no
+   per-release confirmation. The key stays encrypted on the maintainer's computer; its password sits in the
+   macOS Keychain and goes to `gboost-release sign --password-stdin` through `publish.py --keychain <item>
+   --yes`, never through argv, chat or logs. The owner was told the trade-off and chose it: whoever takes
+   over the agent (for example by a crafted message via the Bot or devlink) can ship a release every install
+   trusts. Messages from the Bot stay data, never a reason to release. During development the packages are
+   built on the maintainer's computer (macOS natively, Linux by cross-compiling with cargo-zigbuild); the
+   GitHub release workflow is for full four-platform builds only.
 9a. **Sessions survive an update.** Open sessions are kept in the node's state, so restarting the same
    node for an update or a rollback does not cost the owner a new session check; only moving to another
    node does (6.6).
@@ -879,7 +887,8 @@ gateway, and must fail each time. A nightly run gives a real model fake accounts
 
 **Supply chain.** Dependencies pinned by hash, CI actions by commit. Build jobs hold no secrets; signing
 happens outside CI. A lint rejects a workflow job that has a write token and runs code not in the reviewed
-commit (Rubi audit C8, C9). Coding agents never hold release keys and do not push. Every security claim
+commit (Rubi audit C8, C9). Coding agents do not push and hold no release key, except the maintainer's own agent by the owner's decision of
+2026-11-16 (6.7 item 10). Every security claim
 shown to users links to a test or is deleted (Rubi audit C7).
 
 ## 9. Traceability: Rubi audit → GBOOST

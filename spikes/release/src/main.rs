@@ -2,7 +2,8 @@
 //!
 //!   gboost-release keygen <dir> [--unencrypted]        new key pair: <dir>/release.key, <dir>/release.pub
 //!   gboost-release manifest <files dir> <version> <schema> <min client>   writes <files dir>/manifest.json
-//!   gboost-release sign <manifest> <secret key>        writes <manifest>.minisig (asks for the key password)
+//!   gboost-release sign <manifest> <secret key> [--password-stdin]   writes <manifest>.minisig (asks for the
+//!                                                      key password, or reads one line from stdin)
 //!   gboost-release verify <manifest> <public key>      checks <manifest>.minisig; exit 0 only if valid
 //!   gboost-release hash <file>                         SHA-256, hex
 //!
@@ -87,16 +88,22 @@ fn main() {
             fs::write(&out, serde_json::to_string_pretty(&m).unwrap() + "\n").unwrap_or_else(|e| die(&e.to_string()));
             println!("{}", out.display());
         }
-        Some("sign") if a.len() == 4 => {
+        Some("sign") if a.len() == 4 || (a.len() == 5 && a[4] == "--password-stdin") => {
             let manifest = Path::new(&a[2]);
             let data = fs::read(manifest).unwrap_or_else(|e| die(&e.to_string()));
             let m: serde_json::Value = serde_json::from_slice(&data).unwrap_or_else(|_| die("manifest is not JSON"));
             let version = m["version"].as_str().unwrap_or_else(|| die("manifest has no version"));
             let sk_s = fs::read_to_string(&a[3]).unwrap_or_else(|e| die(&e.to_string()));
             // An unencrypted key (tests only) loads directly; an encrypted one asks for its password.
+            // With --password-stdin the password comes as one line on stdin (from a password store, never argv).
+            let password = (a.len() == 5).then(|| {
+                let mut line = String::new();
+                std::io::stdin().read_line(&mut line).unwrap_or_else(|e| die(&e.to_string()));
+                line.trim_end_matches(['\r', '\n']).to_string()
+            });
             let sk = SecretKeyBox::from_string(&sk_s).and_then(|b| b.into_unencrypted_secret_key())
-                .or_else(|_| SecretKeyBox::from_string(&sk_s).and_then(|b| b.into_secret_key(None)))
-                .unwrap_or_else(|e| die(&e.to_string()));
+                .or_else(|_| SecretKeyBox::from_string(&sk_s).and_then(|b| b.into_secret_key(password)))
+                .unwrap_or_else(|_| die("could not open the secret key (wrong password?)"));
             let pk = PublicKey::from_secret_key(&sk).ok();
             let comment = format!("gboost release {version}");
             let sig = minisign::sign(pk.as_ref(), &sk, Cursor::new(&data), Some(&comment), None)
