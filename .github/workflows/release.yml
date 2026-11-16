@@ -61,4 +61,6 @@ jobs:
           spikes/release/target/release/gboost-release manifest dist "${GITHUB_REF_NAME#v}" "$(cat release/SCHEMA)" "$(cat release/MIN_CLIENT 2>/dev/null || echo 0.1.0)"
       - name: draft release (unsigned until the maintainer signs it)
         env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/manifest.json --draft --title "GBOOST $GITHUB_REF_NAME" --notes "Draft: waiting for the maintainer's signature."
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/manifest.json --draft \
+            --title "GBOOST $GITHUB_REF_NAME" --notes "Draft: waiting for the maintainer's signature."

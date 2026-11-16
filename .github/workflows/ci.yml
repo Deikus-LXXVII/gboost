@@ -8,6 +8,16 @@ permissions:
   contents: read
 
 jobs:
+  workflows:
+    # A workflow file that does not parse never runs, so a broken release.yml would only show up on a tag.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color
+
   test:
     strategy:
       fail-fast: false
