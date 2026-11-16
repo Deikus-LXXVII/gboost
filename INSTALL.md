@@ -211,6 +211,71 @@ Tell the owner:
 - the check results;
 - how to stop GBOOST (below).
 
+## Part 2 (test): GBOOST's own Tailscale, several nodes, the client on your computer
+
+This part is spike S10. It replaces steps 7–9 above. GBOOST brings its own Tailscale device on every node
+and in a small client on your own computer (the Bot's computer). That client is the one `gboost` connector:
+it reaches whichever node is alive, so the connector never changes. The owner only opens a login link for
+each new GBOOST device. Every Tailscale the computers already run stays as it is.
+
+**Ask the owner** in chat before starting: they must approve downloading and running Tailscale on each
+computer, and adding the new devices to their tailnet.
+
+### A. On each node (the owner's computers or a VPS)
+
+1. Get the Tailscale programs, without installing a system service:
+   - **Linux:** the static build for the CPU from https://pkgs.tailscale.com/stable/#static, unpacked into
+     `~/.gboost/bin` (only `tailscale` and `tailscaled`).
+   - **macOS:** `brew install tailscale`. This installs only the programs; do not run `brew services`.
+     Without Homebrew, **ask the owner**.
+   - **Windows:** not supported yet in this test. Tell the owner and stop.
+2. Build the core (step 3 above) and pick two free ports (step 4). On the primary node also write
+   `routine.toml` (step 5). A standby node gets no `routine.toml`.
+3. Start the node. `<name>` is short and unique, for example `home` or `vps`:
+
+       mkdir -p -m 700 ~/.gboost/node
+       nohup python3 ~/gboost/spikes/node-net/gboost_node.py --name <name> \
+         --core ~/gboost/spikes/bot-client/core/target/release/gboost-s9-core --state ~/.gboost/node \
+         --agent-port <agent port> --owner-port <owner port> [--ts-bin-dir ~/.gboost/bin] \
+         > ~/.gboost/node/launcher.out 2>&1 &
+
+4. `launcher.out` shows `LOGIN https://login.tailscale.com/...`. Send that link to the owner in chat. Ask
+   them to open it and press **Connect**. The link works for about 15 minutes. After the login it shows
+   `TAILNET <device name>` and then `URL https://<device name>/mcp`. Use that printed URL; if the name was
+   taken, Tailscale adds a suffix such as `-1`. If it shows `ENABLE <link>` instead, the tailnet has HTTPS
+   certificates turned off: send that link to the owner, then start the node again.
+5. On the primary, make the client key as in step 8, with the owner port from this step. On each
+   standby, copy `clients.json` from the primary's `~/.gboost/node` into its own `~/.gboost/node` **before**
+   starting it. That file holds only key hashes.
+
+### B. On your own computer (the client)
+
+1. `git clone https://github.com/Deikus-LXXVII/gboost ~/gboost`, and get the Tailscale programs as in A.1
+   into `~/.gboost-client/bin` (Linux or macOS; Windows is not supported yet in this test).
+2. Make `~/.gboost-client` with mode 700. Write `config.json` there with the URLs the nodes printed,
+   the primary first:
+
+       {"nodes": ["https://gboost-node-<primary>.<tailnet>.ts.net/mcp", "https://gboost-node-<standby>.<tailnet>.ts.net/mcp"],
+        "tailscale": {"enabled": true, "hostname": "gboost-client", "bin_dir": "<home>/.gboost-client/bin"}}
+
+3. Copy the content of the primary's `new-client.txt` into `~/.gboost-client/client.key`, file to file with
+   your file tools. Never put it in chat. Set the file to mode 600, then delete `new-client.txt`.
+4. Run `python3 ~/gboost/spikes/node-net/gboost_client.py login`. It prints `LOGIN <link>`. Send the link
+   to the owner, wait for them to press **Connect**, and wait for the line `RUNNING`. (If the device is
+   already logged in it prints `RUNNING` at once; `TIMEOUT` means the link expired: run it again.)
+5. Set up the connector. There must be exactly one `gboost` connector:
+   - type **Command** (stdio);
+   - command `python3 <home>/gboost/spikes/node-net/gboost_client.py`;
+   - environment `GBOOST_CLIENT_HOME=<home>/.gboost-client`.
+
+   If a Remote `gboost` connector exists, replace it, but only with the owner's OK in chat.
+6. Check as in step 10.
+7. Tell the owner, once: every `gboost-*` device is a normal device of their tailnet. If they want, they can
+   later give these devices a tag and an access rule so the client reaches only the nodes. Nothing in
+   GBOOST needs that.
+8. Then check failover. Ask the owner first: stop the primary's launcher, then call `gboost_status`. It must
+   still answer, now from the standby. Start the primary again; after about a minute calls go back to it.
+
 ## Stop or remove
 
 1. Stop the process: `pkill -f gboost-s9-core` on macOS and Linux, `Stop-Process -Name gboost-s9-core` on

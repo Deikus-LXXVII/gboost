@@ -25,3 +25,17 @@ jobs:
         if: matrix.crate == 'spikes/bot-client/core'
         working-directory: spikes/bot-client
         run: python scripts/e2e_remote.py "${{ github.workspace }}/spikes/bot-client"
+      - name: client failover across two cores (S10)
+        if: matrix.crate == 'spikes/bot-client/core'
+        run: python -I spikes/node-net/test_failover.py "${{ github.workspace }}/spikes/bot-client/core/target/debug/gboost-s9-core${{ runner.os == 'Windows' && '.exe' || '' }}"
+
+  devlink:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: devlink end to end
+        run: python -I tools/devlink/test_devlink.py

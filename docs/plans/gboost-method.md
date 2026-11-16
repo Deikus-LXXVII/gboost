@@ -4,8 +4,8 @@ Status: **approved by the owner** (2026-11-12), including every recommendation i
 added 2026-11-13. **Merged revision 2026-11-13:** phone first, platforms, nodes and failover (P1, P2, P10,
 P12 amended, P13 new, 6.5, 6.6, phases, D10 to D15, F13 to F22), from the draft `gboost-nodes-phone.md`
 (Fable 5.2) after the owner's decisions of 2026-11-13; merged by Opus 5.5. Nothing is built yet. Phase 0
-(section 10) is next; section 12 facts can still reopen D2, D3 and D16. **D16 (2026-11-13):** the Bot
-reaches GBOOST through `gboost-client` on its VM; it supersedes D13 (6.1, 6.6, S9). Drafted by Fable 5.2
+(section 10) is next; section 12 facts can still reopen D2, D3 and D16. **D16 (2026-11-13, revised after S9):** the Bot
+reaches GBOOST through a Remote HTTPS connector on a tailnet-only name, with a client key in a header and a webhook-checked session; it supersedes D13 for the agent path, and the front door is open again (6.6, S9). Drafted by Fable 5.2
 (high effort), reviewed by Opus 5.5: audit ids checked against the audit; section 4.8 and the D2/D3 note added.
 Revised 2026-11-12 after the owner's correction: GBOOST exists to extend Grok Bot.
 Renamed 2026-11-13 (owner): Bastion → **GBOOST, Grok Bot Operations & Superpowers Toolkit**. Map ids
@@ -23,8 +23,8 @@ Reading: sections 1 to 8 and 10 to 12 are the document. Section 9 is a lookup ta
 ## 1. GBOOST in short
 
 GBOOST extends what **Grok Bot** can do for its owner: mail, calendar, notes, smart home, messengers, code.
-The owner talks to Grok Bot in the Grok app. Grok Bot calls GBOOST's tools through `gboost-client`, a local
-Command (stdio) connector on the Bot's VM that talks to the active node over the owner's tailnet (D16). A
+The owner talks to Grok Bot in the Grok app. Grok Bot calls GBOOST's tools through one Remote HTTPS connector. Its URL is served tailnet-only by
+the active node, and Grok's connector backend reaches it through the owner's tailnet (D16). A
 plugin turns each call into a typed effect. The **core** decides, shows, executes and logs. The owner
 approves, in GBOOST's own approver on the phone, only what cannot be undone.
 
@@ -60,8 +60,9 @@ stop and recover. A6 GBOOST's own release and catalog channel.
 one per user, shared by all of that user's Bots, with sudo and open egress by default. There is no
 self-hosted runner. Anything placed there (a stdio MCP server, files, Grok Vault secrets) is readable and
 writable by the Bot. Rubi's test in October found Vault secrets in plaintext on the VM
-(`box-secrets.json`), reusable by the Bot without the owner. `gboost-client` (D16) lives there too, with its
-client key and session: they carry only the Bot's own authority, so the Bot reading them changes nothing. So:
+(`box-secrets.json`), reusable by the Bot without the owner. The connector (D16) does not live there: Grok's platform
+stores its URL and client key and makes the calls from its own tailnet node, outside the VM. The client key
+and session carry only the Bot's own authority, so the Bot reading them would change nothing. So:
 
 1. Nothing GBOOST trusts lives on that VM.
 2. No GBOOST secret passes through Grok's Vault or through chat.
@@ -79,7 +80,7 @@ client key and session: they carry only the Bot's own authority, so the Bot read
 
 | # | Trust boundary | Enforcement point |
 |---|---|---|
-| B1 | Grok Bot (through `gboost-client`) ↔ core | Agent gateway: enrolled client key, webhook-checked session, strict parse, grants, budgets, read filter |
+| B1 | Grok Bot (through the Remote connector) ↔ core | Agent gateway: enrolled client key, webhook-checked session, strict parse, grants, budgets, read filter |
 | B2 | Core ↔ plugin | WASM sandbox with host functions from the manifest |
 | B3 | Core ↔ outside services | Egress proxy and effect executors. Credentials are attached here |
 | B4 | Core ↔ owner's phone | Owner API: requests signed by an enrolled device key |
@@ -90,8 +91,8 @@ client key and session: they carry only the Bot's own authority, so the Bot read
 does with tools that are not GBOOST's: its shell, other connectors, desktop commands through the Grok app.
 
 **Accepted, by owner rule (`CLAUDE.md`, 2026-11-13).** GBOOST never restricts the Bot's own capabilities.
-Through the Grok Tailscale plugin the Bot's VM is in the owner's tailnet under the owner's login, with full
-reach to every device on it (S4); no ACL limits it. GBOOST's guarantees must hold with that reach. Hence
+The Bot's VM is not in the owner's tailnet (S9), but Grok's connector backend is, under the owner's login,
+and S4 showed it reaching every device on it; no ACL limits it. GBOOST's guarantees must hold with that reach. Hence
 Tailscale identity headers (they name the owner for the Bot's requests too) and source addresses never
 count as identity or grant anything: the core knows the Bot only by its enrolled client key and session.
 
@@ -382,10 +383,10 @@ This is the architecture decision (D2).
 
 | Option | How Grok Bot reaches it | Credential, and where it lives | Holds against an injected Bot | Install |
 |---|---|---|---|---|
-| **A. An always-on box at home** (a desktop or mini PC, NAS, small Linux box), own OS account | `gboost-client` on the Bot's VM, over the tailnet (D16; was: Remote HTTPS connector) | Client key and short session, on the VM, readable by the Bot; the Bot's authority only | Yes | Installer, scan a code, install the client, enrol it |
+| **A. An always-on box at home** (a desktop or mini PC, NAS, small Linux box), own OS account | Remote HTTPS connector on a tailnet-only name (D16) | Client key in the connector's header, held by Grok's platform; short server-side session; the Bot's authority only | Yes | Installer, scan a code, add the connector, enrol the key |
 | B. A VPS the owner rents | Same, over the tailnet; no public address | Same | Yes against the Bot. The VPS host can read data and credentials | Same installer; monthly cost |
 | C. The owner's desktop | As A | Same | Only while awake. The Grok desktop app can run commands there | Same |
-| D. The Bot's VM (Rubi's choice) | Command connector (stdio) | None: all is local to the Bot | No | Easiest: the Bot installs it |
+| D. The Bot's VM (Rubi's choice) | A local stdio server on the VM | None: all is local to the Bot | No | Easiest: the Bot installs it |
 
 **What D loses.** The Bot has root beside the core. It can read service credentials in use and act without
 GBOOST; read stored mail, notes, the undo journal and everything the filter withheld; rewrite policy,
@@ -402,29 +403,34 @@ can read what runs in memory there (at rest the state is encrypted, 4.8). The in
 **Nodes.** An owner may run more than one core (6.6). The usual shape is A as the primary and a VPS (B) as
 the standby. A typical case: a computer at home as primary, a rented VPS as standby.
 
-**Network path (D16).** Grok Bot calls `gboost-client`, a local Command (stdio) connector on its VM. The
-client talks to the active node's agent listener over the tailnet: the VM joins it through Grok's Tailscale
-plugin under the owner's login (S4, F3). The agent path needs no public address, no Remote HTTPS connector,
-no OAuth and no Funnel. The client picks the active node itself (6.6), so there is one connector by
-construction.
+**Network path (D16).** Grok Bot calls one Remote HTTPS MCP connector. Its URL is a name served by
+`tailscale serve` on the active node, tailnet only, never Funnel. The Bot's VM is not in the tailnet and
+cannot reach it (S9); the Grok platform's connector backend can, and it makes every call from there. The
+agent path needs no public address, no OAuth and no Funnel. The URL must reach whichever node is active
+(6.6). A stdio client on the VM (`gboost-client`) was tried in S9 and dropped: the VM cannot reach the
+tailnet.
 
-**What Grok Bot holds.** The client key and the current session, both on the VM and readable by the Bot
-(S4 settled F2 the same way for the old path: the bearer token reached the VM on every tool call). Both
-carry the Bot's authority only: read inside grants, propose effects. Identity has two parts:
+**What Grok Bot holds.** Nothing of the connector's credentials: the client key sits in the connector's
+header settings on the Grok platform, outside the VM (S9 corrected the F2 reading of S4: those calls came
+from the platform's tailnet node). The Bot can still use the connector, so key and session carry the Bot's
+authority only: read inside grants, propose effects. The core keeps one server-side session per client; the
+Bot holds no session token. Identity has two parts:
 
-- **Client key.** Made by the client on the VM and enrolled once by the owner: a T4 approval on the phone
-  that shows the key's fingerprint. The owner removes it in the approver.
-- **Session.** Opened only after a webhook check. On a start request signed by the enrolled key, the core
-  POSTs a random code to the owner's routine webhook; the routine run hands it to the client
-  (`gboost_deliver_code`); the client trades it, signed with its key, for a session. The code is single
-  use, short-lived and bound to the key that asked for it. Sessions are short (hours), budgeted and
-  revocable from the phone. Checks run at session start and every few hours, never per call, and have
+- **Client key.** A static header, `x-gboost-client: <client id>:<secret>`, made and enrolled by the owner
+  (T4 approval on the phone) and typed into the connector's header field in Grok, never into chat. The
+  owner removes it in the approver. `initialize`, `tools/list` and `gboost_status` need only the key.
+- **Session.** Opened only after a webhook check; all other tools need it. When a call arrives with the key
+  and no session, the core POSTs a one-time code to the owner's routine webhook (Bearer key); the routine
+  run hands it back by calling `gboost_deliver_code` through the same connector, and the session opens.
+  The code is single use, short-lived and bound to the key that asked for it. Sessions are short (hours),
+  budgeted and revocable from the phone. Checks run at session start and every few hours, never per call, and have
   their own budget, since each costs a routine run (F24).
 
 The webhook key lives only in the core's vault: the Bot and the VM never hold it. A stolen client key is
-therefore useless except through the owner's own Bot. Limits: this does not stop an injected Bot (approvals
-do, P1); a Bot can relay a code to another process, which gains only a short session for the same key. All
-Bots of one owner share a VM, so one client is one caller.
+therefore useless except through the owner's own Bot. Limits: the key sits in Grok's connector settings on
+the platform; this does not stop an injected Bot (approvals do, P1); a Bot can relay a code to another
+process, which gains only a short session for the same key. All Bots of one owner share the connector, so
+one client key is one caller.
 
 ### 6.2 Chat-first use
 
@@ -439,28 +445,27 @@ owner pastes the connector URL).
    The Bot reads it from the latest signed release tag, not the default branch, and only from the exact
    repository URL the owner gave. These rules are instructions; the release signature is the real check.
 2. **Where it installs.** The Bot asks which machine, and installs on the owner's always-on machine through
-   the Grok desktop app's command access (F11). The core never goes on the Bot's VM (D2; only the client
-   does, 3a): `INSTALL.md` says so and the core installer checks for the Grok VM and exits. Both are
+   the Grok desktop app's command access (F11). The core never goes on the Bot's VM (D2): `INSTALL.md` says so and the core installer checks for the Grok VM and exits. Both are
    advisory (the Bot controls its VM); D2 rests on the owner naming the right machine. If the owner has only a phone, the Bot switches to the phone-only path
    below. A Bot-run VPS install over SSH is not offered as a product path (Bot as root cannot be proven gone
    afterwards); the owner's own setup is a recorded exception (below).
 3. **What it runs.** A short bootstrap from the repository's latest signed release. The bootstrap checks the
    release signature against the key embedded in it and refuses anything else, so a mangled or injected
    command fails instead of installing other code. The installer then creates the core's own service account (a hidden user on macOS, Linux or Windows),
-   installs the service, sets up HTTPS for the approver (Tailscale serve), binds the agent listener to the
-   node's tailnet address, and prints only progress text to the Bot.
-3a. **The client (D16).** The Bot installs `gboost-client` on its own VM (the core serves the file from the
-   signed release; the core trusts nothing in it) and adds it in Grok as a Command connector (F25). The
-   client makes its key and asks the core to enrol it; the client prints the key's fingerprint in chat.
+   installs the service, sets up HTTPS for the approver (Tailscale serve), publishes the agent listener through `tailscale serve` (tailnet only, never Funnel), and prints only progress text to the Bot.
+3a. **The connector (D16).** The Bot adds the core's tailnet URL in Grok as a Remote HTTPS connector (as in
+   S9, where the Bot did it itself; the owner does it only if the Bot cannot). The core makes the client key;
+   the owner enrols it with a T4 approval that shows the key's fingerprint. The Bot reads the key from its
+   owner-only file straight into the connector's header field, never into chat.
 4. **Owner steps** (the Bot asks, gives a link or says where to look, and waits):
    - the OS admin password, typed into the computer's own system dialog, never into chat (needed once, to
      create the core's account);
-   - Tailscale sign-in, and adding Grok's Tailscale plugin so the Bot's VM joins the tailnet (Funnel only
-     if the owner API is made public, D2+D3 note);
+   - Tailscale sign-in, and connecting the owner's tailnet in Grok so its connector backend can reach the
+     core (Funnel only if the owner API is made public, D2+D3 note);
    - scanning the QR code shown on the primary computer's screen with the phone: the approver opens, the platform authenticator (Face ID/Touch ID, Windows Hello, Android biometrics) enrols the
      passkey, Add to Home Screen, notifications on;
-   - confirming Grok's own prompt that adds the Command connector, if it shows one; then the biometric check on the
-     phone to enrol the client key (T4), after checking that the fingerprint matches the one in chat;
+   - confirming Grok's own prompt that adds the connector, if it shows one; then the biometric check on the
+     phone to enrol the client key (T4);
    - creating a routine in Grok with the instruction text the approver shows (6.3), and typing its webhook
      URL and key in the approver, never in chat. The first session check runs right after;
    - switching the Grok desktop command access back to "ask every time" (or off) when the install ends.
@@ -471,11 +476,11 @@ owner pastes the connector URL).
 
 Why this does not weaken the trust model: the trust anchors stay the release signature, the QR scan and the
 phone's biometric check, and the Bot can produce none of them. The Bot gets no owner credential from installing
-(the client key it makes carries only its own authority, and only once the owner enrols it): secrets
+(the client key carries only the Bot's own authority, and only once the owner enrols it): secrets
 are generated inside the core's account and never printed (the S4 spike lesson: its console output held the
 client secret), and the enrolment code appears only on the Mac's screen and in the QR.
 
-The agent listener answers only on the tailnet; it has no public address (D16). The owner API is a separate
+The agent listener answers only on the tailnet, through `tailscale serve`; it has no public address (D16). The owner API is a separate
 listener (P2). The Bot's tailnet reach is not limited (2, accepted by owner rule), so neither listener
 trusts the network: the agent listener needs the client key and a session, the owner API a device-key
 signature.
@@ -546,7 +551,7 @@ After that, "connect my iCloud mail" makes the Bot call `setup`; the owner opens
 types the app password there and approves.
 
 **Daily use.** T0 and T1 calls just work. For T2 to T4 the tool returns a request id and a state, drawn in
-chat as an interactive card (xAI docs; whether Grok draws cards from a Command connector is F4): title,
+chat as an interactive card (xAI docs; whether Grok draws cards from a connector's result is F4): title,
 state, expiry and one button, "Open GBOOST", a pointer with no secret. The card is built from what the
 Bot itself submitted, never from derived or withheld content (Rubi audit P-M2).
 
@@ -690,16 +695,16 @@ example a Tailscale outage) and the owner approves takeover. Both nodes then act
 new epoch. Each T3 still needs its own approval naming its node; T1 budgets can be spent twice (undoable);
 standing grants run on the primary only, so their caps hold.
 
-**One connector (owner's fixed requirement; D16 supersedes D13).** Grok has one connector for all nodes:
-`gboost-client` on the Bot's VM. The client holds the signed node list, asks each node for its status and
-the highest epoch it has seen, and sends calls to the node that epoch names; while the primary is down it
-reaches the standby in limited mode. The client is the Bot's code, so a wrong choice is possible; it only
-reaches a node that refuses to execute (epoch fencing, I13.1) or one in limited mode. Sessions are bound to
-the node and epoch that opened them; after a failover the client runs a new check. The webhook key is in
-the sealed set, so a standby in limited mode cannot run a check: it accepts only status and queued
-proposals, signed by the enrolled client key (in the clear set). A standby in full mode opens sessions
-itself. The front-door options FD2 (Tailscale service name) and FD3 (own domain, DNS switch) are no longer
-needed, nor is a DNS token on the VPS.
+**One connector (owner's fixed requirement; D13 reopened for the front door after S9).** Grok has one
+connector for all nodes. With no client on the VM (S9), node choice cannot happen in the client, so the
+connector's URL must be one tailnet name that points to the active node: FD2 (one Tailscale service name
+hosted by both nodes) first, FD3 (the owner's domain, DNS switched) as fallback, to be proven by spike S7.
+The D13 analysis of FD2 and FD3 applies again. Epoch fencing (I13.1) stays: a node that is not the
+primary at the highest epoch refuses to execute, or answers in limited mode. Sessions are bound to the node
+and epoch that opened them; after a failover the next call finds no session and runs a new session check.
+The webhook key is in the sealed set, so a standby in limited mode cannot run a check: it accepts only
+status and queued proposals, authenticated by the client key (in the clear set). A standby in full mode
+opens sessions itself.
 
 **The approver has one origin: the primary's.** The installed web app starts from its cache when the primary
 is down and calls the standby's owner API cross-origin (F16). The standby never serves approver code, so a
@@ -727,8 +732,8 @@ rotates the state key, and lists the credentials to revoke at their services.
 | Split-brain | Fallible builders; A3 | Epoch in context; standing grants on the primary only | T1 budgets can double during a partition |
 | Node enrolment | Bot, outside attacker; A4 | Owner-made join code, key exchange, T4 signature on the descriptor | A join code leaked into chat (or, in the owner's setup, passed through the Bot) lets another machine pair; the address and fingerprint on the T4 screen are the last check |
 | Approver across nodes | VPS host; A3 | Code only from the primary; signed effects shown in full | None beyond the primary's own |
-| Node choice in the client (D16) | Bot, VPS host; A3, A5 | Signed node list; epoch fencing; sessions bound to node and epoch | The Bot can send calls to the wrong node; that node refuses or queues. A VPS host in limited mode sees what the Bot submits (as in the Limited mode row) |
-| Client key and session on the VM (D16) | Injected Bot, anyone it relays to; A1, A3 | Webhook check bound to the key; short, budgeted, revocable sessions; grants and approvals | An injected Bot uses the client as it likes inside grants, and can relay a code to another process for one short session of the same key. Tailscale headers and source addresses grant nothing |
+| Front door and node choice (D13 reopened, S7) | Bot, VPS host, DNS token holder under FD3; A3, A5 | One tailnet name for the active node; epoch fencing; sessions bound to node and epoch | A call can reach a node that is not active; that node refuses or queues. A VPS host in limited mode sees what the Bot submits (as in the Limited mode row). Under FD3 a DNS token holder can redirect the Bot's traffic |
+| Client key and session (D16) | Injected Bot, anyone it relays to; A1, A3 | Key held by Grok's platform; webhook check bound to the key; short, budgeted, revocable sessions; grants and approvals | The key sits in Grok's connector settings on the platform. An injected Bot uses the connector as it likes inside grants, and can relay a code to another process for one short session of the same key. Tailscale headers and source addresses grant nothing |
 | Owner's VPS node (D10) | Bot with Mac command access; A1, A2 | Grok's "ask every time" only | Root on the VPS at any time; during a failover the scoped accounts |
 | Recovery by passkey sync (R1) | Outside attacker; A4 | Platform account security | Whoever takes over the Apple or Google account can approve |
 
@@ -746,7 +751,7 @@ rotates the state key, and lists the credentials to revoke at their services.
 | One phone vs losing it | Passkey sync (R1) plus a second authenticator (R2), 4.8 | The Apple or Google account can approve; without sync, the owner must enrol R2 in advance |
 | Phone only vs a Bot-run install | The owner pastes one block in the provider panel (6.2) | One paste with two blanks; the VPS host can read memory (placement B only) |
 | Automatic failover vs a VPS that holds every secret | Limited mode is automatic; full takeover needs one biometric approval (6.6) | While the owner sleeps, the Bot gets a queue, not working tools |
-| One connector vs no shared party in the middle | `gboost-client` on the Bot's VM picks the active node over the tailnet (6.6, D16) | The client's key and session are readable by the Bot; each session check costs a routine run and some delay (F24) |
+| One connector vs no shared party in the middle | One tailnet name for the active node (FD2, else FD3, 6.6, D16) | The key sits in Grok's connector settings; each session check costs a routine run and some delay (F24) |
 | A capable Bot vs a narrow path to GBOOST | Full tailnet reach accepted (owner rule); the core trusts only the client key and session, never network identity (2) | The Bot can reach every tailnet service; each must authenticate on its own |
 | State never readable at rest vs unattended restarts | Passkey-released state key on every node (4.8) | One biometric approval after each reboot of any node |
 | Phones as hosts | Phones are approvers only (6.5) | A phone-only owner needs a VPS |
@@ -853,14 +858,14 @@ Ordered. Each phase ends with its invariants green and break-checked.
    sync on both phones, PRF (F13 to F15); the phone-only install on a fresh, separately rented VPS, done by
    the owner from the phone (F17); the approver across two nodes (F16); a Windows service and sealing, and
    macOS sealing in a daemon (F20, F21). S4 ran the Remote HTTPS connector with OAuth (F1 holds, F2 false
-   in practice, F3 answered). Added with D16 (S9): `gboost-client` as a Command connector on the Bot's VM,
-   client-key enrolment and the routine-webhook session check, end to end (F4, F23 to F25). The two-node
-   front-door spike (F18, F19) is no longer needed: the client picks the node.
-1. **First slice, used from Grok chat: notes.** Install, scan, install and enrol the client, create the
+   in practice, F3 answered). Added with D16 (S9): the Remote connector on a tailnet-only name, client-key
+   enrolment and the routine-webhook session check, end to end (F4, F23, F24); live 2026-11-16. A stdio
+   client on the VM was tried and dropped. The two-node front-door spike (S7: F18, F19) is needed again.
+1. **First slice, used from Grok chat: notes.** Install, scan, add the connector and enrol its key, create the
    routine. Then in chat: "save this to my notes" and "find my note about X" just work (T0, T1, undo in the
    feed). "Rewrite my note Y" shows a card and asks in the approver with a diff (T2). Built: agent gateway
    with client-key enrolment (T4) and the webhook session check (so the routine webhook arrives here, not in
-   phase 3), `gboost-client`, plugin host, an Obsidian
+   phase 3), plugin host, an Obsidian
    vault plugin, audit log, undo journal, approver, skill text, and the installs of 6.2: signed release,
    bootstrap, `INSTALL.md`, the Bot-run macOS install (D8) and the phone-only VPS install (D10). The core
    builds and is tested on macOS and Linux from the first commit. Built in from the start because
@@ -873,7 +878,7 @@ Ordered. Each phase ends with its invariants green and break-checked.
 3. **Few prompts, and events.** Task cards, standing grants, budgets, pause rules. Watches and coalesced
    wakes through the routine webhook (shared with session checks since phase 1). Calendar plugin.
 4. **Nodes.** Node enrolment, replication with the clear and sealed sets, limited mode, takeover and
-   hand-back, the Nodes screen, per-node credentials, node choice in `gboost-client` (6.6). The owner's VPS
+   hand-back, the Nodes screen, per-node credentials, the front door to the active node (FD2, else FD3, 6.6). The owner's VPS
    standby is installed here (6.2, D10). Hostile-suite additions: a hostile standby, a partition, a replayed
    epoch, a stolen primary.
 5. **Plugin SDK.** The `gboost plugin` commands, the conformance suite, docs. Rewrite one first-party plugin
@@ -887,8 +892,10 @@ Not planned: agents running code on the owner's machines (D7). Optional later: o
 
 ## 11. Decisions
 
-**Decided 2026-11-13 (third round, owner, after S4):** D16 the agent path is `gboost-client` on the Bot's
-VM with a webhook-checked session; D13 is superseded.
+**Decided 2026-11-13 (third round, owner, after S4):** D16 the agent path is a Remote HTTPS connector on a
+tailnet-only name with a client key in a header and a webhook-checked session (revised after S9; the first
+form was a stdio client on the VM). D13 is superseded for the agent path; the front door is open again
+(FD2, else FD3, S7).
 
 **Decided 2026-11-13 (second round, owner):** D10 phone-only install by an owner-pasted block, the Bot never
 logs in, and the owner's own VPS node installed by the Bot through the owner's root key as an accepted risk;
@@ -919,10 +926,10 @@ D6 first-party until the SDK phase; D7 forge plugin only). The table stays as th
 | D10 | Phone-only install (amends D8 on that path) and the owner's VPS node | H1 owner pastes a block; H2 owner's SSH app; Bot over SSH; Bot with a provider token | **Decided: H1 with an owner-made enrolment code (E1), H2 supported; the Bot guides and never logs in. The owner's own VPS node: the Bot installs it through the owner's root SSH key from the Mac, accepted risk (6.2)** | One paste with two blanks for a phone-only owner. For this owner, a Bot with Mac command access can reach root on the VPS at any time; the only guard is "ask every time" |
 | D11 | What a node holds | Standby holds the key always; key released per failover, per account; nothing | **Decided: all state encrypted on every node under a key only the owner's passkey releases (PRF), in memory only; a standby gets it per takeover, for accounts in scope** | Host reads nothing at rest, in snapshots or backups; a VPS host can read memory during a failover. One biometric approval after each reboot |
 | D12 | Who starts a failover | Automatic; limited automatic and full on approval; owner only | **Decided: limited mode automatic, full takeover after one biometric approval** | If the owner is asleep, the Bot gets "main node offline" and a queue, not working tools |
-| D13 | Front door (**superseded by D16**, 2026-11-13) | FD1 connector per node; FD2 Tailscale service name; FD3 own domain with DNS switch; FD4 VPS forwards; FD5 tunnel provider | **Decided: one connector for all nodes (owner's fixed requirement). FD2 if Phase 0 confirms it, else FD3 with a DNS token scoped to one record. FD1, FD4, FD5 rejected. Neither FD2 nor FD3 working is an owner stop point** | FD3 puts a DNS token on the VPS: its holder can redirect the Bot's traffic (6.6) |
+| D13 | Front door (**superseded by D16** on 2026-11-13; **reopened for the front door after S9**, 2026-11-16) | FD1 connector per node; FD2 Tailscale service name; FD3 own domain with DNS switch; FD4 VPS forwards; FD5 tunnel provider | **Decided: one connector for all nodes (owner's fixed requirement). FD2 if spike S7 confirms it, else FD3 with a DNS token scoped to one record. FD1, FD4, FD5 rejected. Neither FD2 nor FD3 working is an owner stop point** | FD3 puts a DNS token on the VPS: its holder can redirect the Bot's traffic (6.6). With no client on the VM, node choice cannot move there (D16) |
 | D14 | Recovery and the meaning of "phone key" (amends P1, D3) | R1 passkey sync; R2 second authenticator; R3 typed code with delay; R4 owner channel | **Decided: R1 by default plus R2 offered at setup; no typed recovery code** | Sync makes the Apple or Google account able to approve |
 | D15 | Scope and order | (a) phone-only VPS install in phase 1, nodes as a new phase 4; (b) nodes after the SDK | **Decided: (a); plugin authoring exempt from phone first** | Phase 1 grows by a Linux install path; the SDK moves one phase later |
-| D16 | Agent path (owner, 2026-11-13, after S4; supersedes D13) | (a) Remote HTTPS connector with OAuth, over Funnel or a public address, one address moved between nodes (FD2 or FD3); (b) `gboost-client`, a local Command connector on the Bot's VM, over the tailnet, with an owner-enrolled client key and sessions opened after a routine-webhook check | **Decided: (b).** The client picks the active node, so one connector holds by construction; no public address, OAuth or Funnel on the agent path (6.1, 6.6) | Credentials sit on the VM, readable by the Bot (S4 showed (a) put the token there too). Does not stop an injected Bot (approvals do); a Bot can relay a code (short sessions bound to the key); each check costs a routine run, so checks run at session start and every few hours, not per call |
+| D16 | Agent path (owner, 2026-11-13, after S4; revised 2026-11-13 after S9; supersedes D13 for the agent path) | (a) Remote HTTPS connector with OAuth over Funnel or a public address; (b) `gboost-client`, a stdio Command connector on the Bot's VM, with an owner-enrolled key and webhook-checked sessions (first form of D16; S9 found the VM is not in the tailnet and cannot reach it); (c) Remote HTTPS connector on a tailnet-only name (`tailscale serve`, never Funnel), static header `x-gboost-client: <client id>:<secret>`, no OAuth, one server-side session per client opened after a routine-webhook check | **Decided: (c).** The core keeps the session, the Bot holds no session token. `initialize`, `tools/list` and `gboost_status` need only the key; other tools need the session. Live 2026-11-16: the Bot installed the core and added the connector itself and the whole loop worked (6.1, 6.6) | Grok's platform stores the key in the connector settings. Does not stop an injected Bot (approvals do); a Bot can relay a code (short sessions bound to the key); each check costs a routine run, so checks run at session start and every few hours, not per call. Node choice needs a tailnet name for the active node (FD2, else FD3, S7) |
 
 ## 12. Facts to verify in Phase 0
 
@@ -930,16 +937,16 @@ Each is per xAI docs or from memory. "If wrong" says what changes.
 
 | # | Fact the design depends on | If wrong |
 |---|---|---|
-| F1 | A Remote HTTPS connector can reach an owner-hosted MCP server, through the Tailscale plugin or a tunnel | Holds (S4). No longer the agent path (D16) |
-| F2 | The connector's OAuth token stays on the platform's backend, never on the VM | **False in practice (S4):** the `tools/call` requests came from the Bot's VM over the tailnet, carrying the bearer token. Credentials the Bot uses are on the VM. D16 builds on that: client key and session on the VM, the Bot's authority only, short and budgeted |
-| F3 | With the Tailscale plugin, F2 still holds and the Bot's tailnet reach can be limited to one port | **Answered (S4):** the VM joins the owner's tailnet under the owner's login and reaches every device. No ACL, by owner rule (never restrict the Bot): its reach is accepted, and Tailscale identity headers never count as owner identity |
-| F4 | A Command connector's result can render a card (`ui://` resource) with a link button; whether a press returns as a tool call. S4: a Remote connector returned the resource, the chat did not draw it | Cards become plain text with a link |
+| F1 | A Remote HTTPS connector can reach an owner-hosted MCP server, through the Tailscale plugin or a tunnel | Holds (S4, S9). Again the agent path (D16): tailnet only through the platform's connector backend, no OAuth, no Funnel |
+| F2 | The connector's credential stays on the platform's backend, never on the VM | **Holds (S9, correcting the S4 reading):** the S4 `tools/call` requests came from the platform's tailnet node, outside the VM. D16: the client key sits in the connector settings on the platform; key and session carry the Bot's authority only |
+| F3 | With the Tailscale plugin, F2 still holds and the Bot's tailnet reach can be limited to one port | **Answered (S4, corrected by S9):** the owner's tailnet login is used by the platform's connector backend and reaches every device; the VM itself is not in the tailnet. No ACL, by owner rule (never restrict the Bot): its reach is accepted, and Tailscale identity headers never count as owner identity |
+| F4 | A connector's result can render a card (`ui://` resource) with a link button; whether a press returns as a tool call. S4: a Remote connector returned the resource, the chat did not draw it | Cards become plain text with a link (S4 and S9 show no drawn card from a Remote connector) |
 | F5 | Routine webhook: POST with a bearer key and JSON body, cost per run, 300 runs an hour | Retune the wake budget; without webhooks the Bot polls on a schedule |
 | F6 | The Grok app has no approval API for third parties | If one appears, use it only if it yields a proof the core can verify |
 | F7 | Whether a connector can be tied to one Bot, and whether one MCP session is one Bot run | GBOOST cannot tell Bots apart; P8's "task" becomes a time window |
 | F8 | iPhone: Web Push from an installed web app on the owner's own address; a passkey check per signature | D3 moves to a native app, which needs a push relay |
 | F9 | WASM component tooling for TypeScript and Rust plugins | Plugins start in Rust only, or 5.1 is reopened |
-| F10 | Grok's custom connector supports OAuth dynamic client registration (only a URL to paste) | Partly answered (S4: Grok is a public PKCE client). No longer on the agent path (D16) |
+| F10 | Grok's custom connector supports OAuth dynamic client registration (only a URL to paste) | Partly answered (S4: Grok is a public PKCE client). Not needed on the agent path (D16): a static header key replaces OAuth |
 | F11 | The Grok desktop app lets the Bot run commands on the owner's primary computer, with a per-command confirmation the owner can switch on | Install falls back to the owner running one command or opening a .pkg |
 | F12 | Grok Bot can read a public GitHub repository from a link and follow a long install guide to the end, stopping where told | `INSTALL.md` shrinks to one command plus owner steps |
 | F13 | Android: a web app installed from Chrome gets Web Push sent by the core with its own key, and a passkey check with user verification per signature | Android needs a native approver, which needs a push relay (D3 reopens) |
@@ -947,11 +954,11 @@ Each is per xAI docs or from memory. "If wrong" says what changes.
 | F15 | The WebAuthn PRF extension works with platform passkeys in Safari on iOS and Chrome on Android | The phone keeps the unwrap secret in web storage as a non-extractable key (weaker), or the owner types the recovery key to unlock a node |
 | F16 | An installed web app starts from its service-worker cache while its origin is unreachable, can call a second origin, and receives a push sent by another node with the same sending key; iOS does not evict the cache of an installed app | One installed approver per node, or a native app |
 | F17 | Mainstream VPS providers accept pasted cloud-init user data in their mobile web panel and run it once as root at first boot; the boot log is readable there | H2 (SSH app) becomes the phone-only default |
-| F18 | Tailscale: a headless node joins with a one-time auth key; Funnel can be switched on from the phone; TLS for serve and Funnel ends on the node; one service name can be served by whichever of two nodes is active (also through Funnel), so one Grok connector reaches the active node; `ts.net` names work as a passkey RP ID | The front-door parts (one service name, Funnel for the connector) are no longer needed (D16). Still needed: headless join, TLS on the node and the RP ID for the approver; if the RP ID fails the owner needs a domain |
-| F19 | FD3: one Grok connector at the owner's domain keeps working when DNS moves to the other node: Grok follows the change within minutes, each node gets a certificate for the name, the connector's token is accepted by whichever node is active, and the provider's DNS token can be limited to one record | No longer needed (D16 supersedes D13) |
+| F18 | Tailscale: a headless node joins with a one-time auth key; Funnel can be switched on from the phone; TLS for serve and Funnel ends on the node; one service name can be served by whichever of two nodes is active (also through Funnel), so one Grok connector reaches the active node; `ts.net` names work as a passkey RP ID | Needed again after S9 (D13 reopened): one service name hosted by both nodes, tailnet only (spike S7), no Funnel for the connector. Also needed: headless join, TLS on the node and the RP ID for the approver; if the RP ID fails the owner needs a domain |
+| F19 | FD3: one Grok connector at the owner's domain keeps working when DNS moves to the other node: Grok follows the change within minutes, each node gets a certificate for the name, the connector's token is accepted by whichever node is active, and the provider's DNS token can be limited to one record | Fallback to F18 if S7 fails (D13 reopened after S9); same limits: the DNS token holder can redirect the Bot's traffic |
 | F20 | Windows: a service under a virtual account, key sealed with the TPM, the WASM host and Tailscale serve all work; the Grok desktop app exists on Windows and Linux with the same command access as F11 | Windows hosting moves later; on those OSes the owner runs the installer |
 | F21 | A macOS daemon account can use a Secure Enclave key with nobody logged in | macOS seals the node key with a keychain file key, as on a VPS |
 | F22 | Grok's secure input field keeps a typed secret out of the model's context and the chat history, and passes it only to a tool call | Passwords go only to owner channels (provider panel, approver), never through the Bot |
-| F23 | A routine run started by the webhook can call a tool of the local Command connector on the VM, so it can hand the code to `gboost-client` | Sessions cannot be checked through the webhook; D16 reopens (owner stop point) |
-| F24 | One routine run costs little plan usage and delivers the code within a minute or so | Fewer checks (longer sessions, tighter budgets), or D16 reopens if the delay makes sessions unusable |
-| F25 | Grok runs a Command connector as a user-installed process on the VM, and it survives VM restarts | The Bot reinstalls or restarts the client after a restart (the key must then survive on disk), or D16 reopens |
+| F23 | A routine run started by the webhook can call a tool of the same Remote connector, so it can hand the code to the core | **Holds (S9, live 2026-11-16).** If it fails, sessions cannot be checked through the webhook; D16 reopens (owner stop point) |
+| F24 | One routine run costs little plan usage and delivers the code within a minute or so | **Holds for delay (S9, live):** the code arrived within about a minute. Cost per run still to be measured; if too high, fewer checks (longer sessions, tighter budgets) |
+| F25 | Grok runs a Command connector as a user-installed process on the VM, and it survives VM restarts | Not relevant: the Command client was tried in S9 and dropped (D16) |

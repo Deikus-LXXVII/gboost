@@ -16,6 +16,7 @@ Spikes live in `spikes/<name>/`. They are throwaway code that answers one questi
 | S6 | Phone-only install: a fresh VPS created in the provider's web panel with the install block and an owner-made enrolment code pasted as user data, then enrolment from the Tailscale app's machine list (plan 6.2, D10) | F17; parts of F18 (auth-key join, Funnel from the phone) | Yes: rent a small server (not an existing VPS that runs other services) and do every step from the phone | planned |
 | S7 | Two nodes behind **one** connector: one Grok connector reaches whichever node is active, before and after a switch. First FD2 (one Tailscale service name), then FD3 (owner's domain, DNS switched, token scoped to one record) if FD2 fails. Also the approver across two nodes: cached start with the primary down, cross-origin call, push from the second node (plan 6.6) | F18, F19, F16 | Yes: the second node (the S6 server can serve), add the connector in Grok and run prompts across a switch; for FD3 a domain and a scoped DNS token. If neither FD2 nor FD3 works: owner stop point (D13) | planned |
 | S8 | Windows service under a virtual account with TPM sealing, the WASM host and Tailscale serve; Grok desktop command access on Windows and Linux; a macOS daemon using a Secure Enclave key with nobody logged in (plan 6.5) | F20, F21 | Yes: a Windows machine; the Mac admin password in the system dialog for the daemon test | planned |
+| S10 | Tailscale inside GBOOST: every GBOOST process (node core, client on the Bot's VM) runs its own userspace `tailscaled` with its own state, no root, separate from any system Tailscale. The install shows the owner a login link. A small stdio client on the Bot's VM is the one `gboost` connector and forwards MCP to the live node over the tailnet, failing over by itself | One connector without a domain or tailnet admin setup (front door); F18 | Yes: open the login links; the Bot adds the Command connector; a second node for failover | in progress |
 
 S1 and S2 run now. S3 to S8 are stop points: the agent prepares everything, then the owner acts.
 
@@ -53,6 +54,55 @@ S1 and S2 run now. S3 to S8 are stop points: the agent prepares everything, then
   Bot from the GitHub link. `INSTALL.md` (root) is the Bot's procedure for the S9 core on Windows, macOS,
   Linux or a VPS. CI runs the tests on all three OSes (green at public commit 0ab2183). Next: the owner
   gives the Bot the link; the live S9 test (does Grok reach a tailnet-only URL) follows that install.
+- 2026-11-16, S9 live result: the Bot installed the core from the GitHub link by `INSTALL.md` (macOS host)
+  and added the connector itself. Grok's backend reaches a tailnet-only `tailscale serve` URL: the agent
+  listener is bound to loopback, so every call came through the tailnet. Full loop worked: first call sent
+  the session check to the routine webhook, the routine delivered the code through the same connector, the
+  session opened, then `gboost_hello`, `gboost_whoami`, `gboost_pending_request` answered; no errors in either
+  log, 11 unauthenticated or probe requests aggregated as noise. Open: auto-start after reboot (not in this
+  stage), F7 (whoami from a new chat), whether the platform probes keep coming without the key.
+- 2026-11-16, F7 answered (via devlink): a new routine run, a fresh model context with no memory of the last
+  run, called `gboost_status` and `gboost_whoami` and got the same client and the same open session with no
+  new check. Sessions belong to the client key, not to a chat or context, as designed. Calls reach the core
+  from the platform's tailnet node (seen in `x-forwarded-for`), not from the Bot's VM. The Bot refused to
+  install on the VPS on an approval relayed by the agent; it asked the owner in its own chat first. This is
+  the intended behaviour: the Bot's own guardrail, not a GBOOST one.
+- 2026-11-16, S7 research (Grok, Tailscale docs as of 2026-11): Tailscale Services (GA, all plans, host
+  v1.86+, clients v1.94.1+) give one name `https://<svc>.<tailnet>.ts.net` advertised by several hosts,
+  active-passive (oldest eligible host first), failover about 15 s after `tailscale down`, `tailscale serve
+  drain svc:<name>` to move traffic by hand. Limits: hosts must be **tagged** nodes (a user-logged-in
+  computer cannot host; tagging it removes the user identity), the service must be defined in the admin
+  console or API, access is default-deny and needs a grant, Funnel does not support services. Unknown:
+  whether Grok's connector resolves `svc:` names. Plan for S7: GBOOST runs its own tagged Tailscale node
+  next to the core on each machine (a second `tailscaled` in userspace mode with its own state, or tsnet),
+  so the owner's own login on the computer stays as it is. Needs owner admin steps: a tag, the service, a
+  grant, a tagged auth key.
+- 2026-11-16 (owner): front door for several nodes. Kept as the default: Tailscale Services (FD2), with
+  the owner's own domain (FD3) as an option for owners who have one. A shared domain for all users was
+  rejected: its owner could point any user's name at their own server and get a certificate for it, which
+  makes one person a party in the middle for everyone. The owner asked to look for options that need no
+  extra setup, or setup the Bot can do during install. Candidates under study:
+  (a) the Bot moves the one `gboost` connector to the standby's own `ts.net` URL on failover (no tailnet
+  or DNS setup; needs the Bot able to edit a connector from a routine run; asked via devlink);
+  (b) FD2 with the Bot doing the admin steps in the owner's signed-in browser, the owner only confirming;
+  (c) one node needs no front door at all: setup appears only when a second node is added.
+- 2026-11-16, candidate (a) ruled out (Bot's answer via devlink): the Bot has no tool to change a
+  connector's URL (only status, restart, rename or delete an account, delete a server, custom instructions);
+  URLs change only in the Grok app's connector settings; a routine run may not change connectors without
+  the owner's OK in chat (platform rule and the Bot's own rule); scheduled routines run at most every 5
+  minutes and spend plan usage. So the address must stay fixed and failover happens behind it: FD2, with the
+  Bot doing the tailnet admin steps during install while the owner is in the chat to confirm (candidate b).
+- 2026-11-16, candidate (d): a small client on the Bot's VM (Command connector) that joins the tailnet
+  itself with userspace `tailscaled` and picks the live node. Probe via devlink: the VM (Debian 13 x86_64,
+  non-root, PID 1 tini, no systemd, hibernates) reaches `controlplane.tailscale.com` and DERP over HTTPS
+  through the platform's transparent egress tunnel. Downloading and starting `tailscaled` was blocked by the
+  platform's automatic review without the owner's OK in the Bot's chat. Persistence: no autostart, so the
+  Command connector would start `tailscaled` itself, with state on disk (`--statedir`), not in memory.
+  Waiting for the owner's OK in the Bot's chat to run the rest (netcheck, whether a login link appears).
+- 2026-11-16, candidate (d) probe finished (owner OK in the Bot's chat): static `tailscaled` 1.104.7 runs
+  without root in userspace mode with a SOCKS5 listener; netcheck: UDP works, IPv4 only, hard NAT (traffic
+  likely through DERP, nearest relay about 5 ms); `tailscale up` prints a login link. Not done: joining
+  (needs the owner: interactive login or an auth key). Technically feasible; next is a prototype client.
 - 2026-11-13 (owner, second round): plan revised for phone first, platforms and nodes (merged from
   `gboost-nodes-phone.md`; plan D10 to D15). Phone-only install by an owner-pasted cloud-init block and an
   owner-made enrolment code; the Bot never logs in there. The owner's own nodes: the Bot installs the primary
@@ -135,3 +185,22 @@ routine run can reach the local client; the cost and delay of one check.
   opened per client key only after a webhook code: the routine run calls `gboost_deliver_code` through the
   same connector. No OAuth. Open question to test: does the Grok backend reach a tailnet-only URL for
   `initialize` and `tools/list` (in S4 those came from public AWS addresses)?
+
+## S10: Tailscale inside GBOOST (owner, 2026-11-16)
+
+Decision: GBOOST brings its own Tailscale. On each node and in the client on the Bot's VM, GBOOST starts a
+userspace `tailscaled` (`--tun=userspace-networking`, own `--statedir` and socket, no root) as a separate
+tailnet device named `gboost-<role>-<name>`. It never touches a Tailscale the computer already runs. The
+first start prints a login link; the Bot passes it to the owner, who opens it once per device. State is kept
+on disk, so restarts and VM hibernation do not need a new login.
+
+- Node: the GBOOST tailnet device publishes the core's agent listener with its own `tailscale serve`
+  (`https://gboost-node-<name>.<tailnet>.ts.net/mcp`, tailnet only).
+- Client: `gboost_client.py` on the Bot's VM is a Command (stdio) connector. It forwards each MCP message
+  to the first live node in its node list through the GBOOST device's SOCKS5 listener, with the client key
+  header. If the node does not answer, it moves to the next one and replays `initialize`. The session check
+  through the routine webhook works as in S9.
+- Why: one connector that never changes, no domain, no tailnet admin setup (the Bot cannot change a
+  connector's URL; Tailscale Services need tagged hosts). Cost: one login link per GBOOST device.
+- Open: Windows userspace `tailscaled` as a non-admin second instance; macOS has no official static
+  build (Homebrew or a build from source); epoch fencing is not in the spike.
