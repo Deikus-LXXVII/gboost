@@ -17,6 +17,8 @@ url = "2"
 rand = "0.8"
 base64 = "0.22"
 uuid = { version = "1", features = ["v4","serde"] }
+# web-push needs OpenSSL; build it from source so no system OpenSSL is required (Windows has none).
+openssl = { version = "0.10", features = ["vendored"] }
 
 [dev-dependencies]
 webauthn-authenticator-rs = { version = "=0.6.2", features = ["softpasskey"] }
