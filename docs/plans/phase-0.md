@@ -221,3 +221,19 @@ on disk, so restarts and VM hibernation do not need a new login.
   connector's URL; Tailscale Services need tagged hosts). Cost: one login link per GBOOST device.
 - Open: Windows userspace `tailscaled` as a non-admin second instance; macOS has no official static
   build (Homebrew or a build from source); epoch fencing is not in the spike.
+
+### 2026-11-16: first signed releases; local builds
+
+- Release key created by the maintainer (key id 9D1E11863913653A), pinned in `release/release.pub`.
+- v0.1.0: release.yml did not parse (a `: ` in a plain scalar); CI now runs actionlint on every workflow.
+- v0.1.1: publish.py refused it: the Windows checkout turned the pinned key into CRLF. `.gitattributes`
+  keeps `release/**` byte-exact and package.py refuses a CRLF key.
+- v0.1.2: built by GitHub for four platforms, signed and published by the agent (owner's decision: the
+  agent signs; password from the Keychain). Installed from GitHub into a scratch node: install, start,
+  `check` = up to date.
+- Local builds (owner): `release/build.py <version> --linux-test-host <ssh host>` in a clean checkout of the
+  tag: macOS natively, Linux via cargo-zigbuild, rehearsal on the Mac and on a real Linux host, about
+  1.5 min instead of 10 to 20 on GitHub. `publish.py --local` checks BUILD_COMMIT against the tag, signs a
+  private copy, uploads as a draft and then publishes. release.yml is now started by hand.
+- VPS standby node `vps` installed by Цитри (S7), answers 401 without a key over the tailnet, standby
+  (no routine.toml). Still to do: add it to the client's node list and the failover check (owner's OK).

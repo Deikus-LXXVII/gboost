@@ -3,12 +3,18 @@ name: release
 # A tag v<major>.<minor>.<patch> builds every package and a manifest of their hashes into a DRAFT release.
 # The maintainer then checks and signs the manifest on their own computer (spikes/release/publish.py);
 # the release key is never here (plan P10, 6.7).
+# During development releases are built on the maintainer's computer (release/build.py); this workflow is
+# started by hand for a full four-platform build of an existing tag.
 on:
-  push:
-    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      tag: { description: "existing tag, e.g. v0.2.0", required: true }
 
 permissions:
   contents: read
+
+env:
+  TAG: ${{ inputs.tag }}
 
 jobs:
   build:
@@ -22,7 +28,11 @@ jobs:
           - { os: windows-latest, target: windows-x86_64 }
     runs-on: ${{ matrix.os }}
     steps:
+      - name: tag must look like v1.2.3
+        shell: bash
+        run: '[[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "bad tag: $TAG"; exit 1; }'
       - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.tag }}" }
       - uses: dtolnay/rust-toolchain@stable
       - name: build
         shell: bash
@@ -39,7 +49,7 @@ jobs:
         run: |
           test -f release/release.pub || { echo "release/release.pub is missing: the maintainer must create the release key first"; exit 1; }
           ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
-          python spikes/node-net/package.py --version "${GITHUB_REF_NAME#v}" --schema "$(cat release/SCHEMA)" \
+          python spikes/node-net/package.py --version "${TAG#v}" --schema "$(cat release/SCHEMA)" \
             --target ${{ matrix.target }} --core "spikes/bot-client/core/target/release/gboost-s9-core$ext" \
             --release-tool "spikes/release/target/release/gboost-release$ext" --pubkey release/release.pub --out dist
       - uses: actions/upload-artifact@v4
@@ -52,15 +62,16 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.tag }}" }
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/download-artifact@v4
         with: { path: dist, merge-multiple: true }
       - name: manifest
         run: |
           cargo build --release --locked --manifest-path spikes/release/Cargo.toml
-          spikes/release/target/release/gboost-release manifest dist "${GITHUB_REF_NAME#v}" "$(cat release/SCHEMA)" "$(cat release/MIN_CLIENT 2>/dev/null || echo 0.1.0)"
+          spikes/release/target/release/gboost-release manifest dist "${TAG#v}" "$(cat release/SCHEMA)" "$(cat release/MIN_CLIENT 2>/dev/null || echo 0.1.0)"
       - name: draft release (unsigned until the maintainer signs it)
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/manifest.json --draft \
-            --title "GBOOST $GITHUB_REF_NAME" --notes "Draft: waiting for the maintainer's signature."
+          gh release create "$TAG" dist/*.tar.gz dist/manifest.json --draft --verify-tag \
+            --title "GBOOST $TAG" --notes "Draft: waiting for the maintainer's signature."

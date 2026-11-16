@@ -4,7 +4,8 @@
   python3 publish.py <tag> --repo <owner>/<repo> --key <release.key> [--tool <gboost-release>]
                     [--keychain <service> --yes]   (macOS: password from Keychain, no prompt)
 
-CI built the packages and an unsigned manifest into a draft release. This script downloads them, checks
+CI built the packages and an unsigned manifest into a draft release (or, with --local, release/build.py built
+them here). This script downloads them, checks
 every hash and the version, shows what will be signed, asks for a yes, signs with the release key (the key
 asks for its password), checks the signature against the pinned `release/release.pub`, uploads it and
 publishes the release. Needs the GitHub CLI (`gh`) signed in.
@@ -27,6 +28,7 @@ def main():
     ap.add_argument("tag")
     ap.add_argument("--repo", required=True)
     ap.add_argument("--key", required=True)
+    ap.add_argument("--local", metavar="DIR", help="publish packages built here (release/build.py) instead of a CI draft")
     ap.add_argument("--keychain", metavar="SERVICE", help="macOS: take the key password from this Keychain item instead of asking")
     ap.add_argument("--yes", action="store_true", help="do not ask before signing (owner's decision 2026-11-16: the agent may sign)")
     ap.add_argument("--export-clone", help="the public clone the tag was pushed from, if this repo is not that clone")
@@ -39,7 +41,13 @@ def main():
         sys.exit("error: release/release.pub is missing")
     d = tempfile.mkdtemp(prefix="gboost-publish-")
     try:
-        sh("gh", "release", "download", a.tag, "--repo", a.repo, "--dir", d)
+        if a.local:
+            # A private copy: what is checked and signed is exactly what gets uploaded.
+            for f in os.listdir(a.local):
+                if f.endswith(".tar.gz") or f in ("manifest.json", "BUILD_COMMIT"):
+                    shutil.copyfile(os.path.join(a.local, f), os.path.join(d, f))
+        else:
+            sh("gh", "release", "download", a.tag, "--repo", a.repo, "--dir", d)
         m = json.load(open(os.path.join(d, "manifest.json"), encoding="utf-8"))
         if "v" + m["version"] != a.tag:
             sys.exit("error: manifest version %s does not match tag %s" % (m["version"], a.tag))
@@ -71,6 +79,10 @@ def main():
         lr = subprocess.run(["git", "-C", REPO_ROOT, "rev-parse", "--verify", "-q", a.tag + "^{commit}"], capture_output=True, text=True)
         local = lr.stdout.strip() if lr.returncode == 0 else ""
         print("Tag %s is commit %s on GitHub; your local %s is %s." % (a.tag, remote, a.tag, local or "missing"))
+        if a.local:
+            built = open(os.path.join(d, "BUILD_COMMIT")).read().strip() if os.path.exists(os.path.join(d, "BUILD_COMMIT")) else ""
+            if built != remote:
+                sys.exit("error: the packages were built from %s, not from the tag's commit %s" % (built or "an unknown commit", remote))
         if local != remote and not a.export_clone:
             sys.exit("error: the tag on GitHub is not the commit you have locally; review it first (or pass --export-clone <dir>)")
         if a.export_clone:
@@ -88,13 +100,20 @@ def main():
             pw = subprocess.run(["security", "find-generic-password", "-s", a.keychain, "-w"], capture_output=True)
             if pw.returncode != 0:
                 sys.exit("error: no Keychain item %r (add it: security add-generic-password -s %s -a gboost -w)" % (a.keychain, a.keychain))
+            # (`security -w` prints a password with non-ASCII characters as hex; use an ASCII password.)
             sh(*sign, "--password-stdin", input=pw.stdout, stdout=subprocess.DEVNULL)
             del pw
         else:
             sh(*sign)
         sh(a.tool, "verify", os.path.join(d, "manifest.json"), pub)
-        sh("gh", "release", "upload", a.tag, os.path.join(d, "manifest.json.minisig"), "--repo", a.repo, "--clobber")
-        sh("gh", "release", "edit", a.tag, "--repo", a.repo, "--draft=false", "--notes", "Signed release %s." % m["version"])
+        if a.local:
+            # A draft first, public only once every file is up.
+            sh("gh", "release", "create", a.tag, *[os.path.join(d, f) for f in pkgs + ["manifest.json", "manifest.json.minisig"]],
+               "--repo", a.repo, "--draft", "--verify-tag", "--title", "GBOOST " + a.tag, "--notes", "Signed release %s." % m["version"])
+            sh("gh", "release", "edit", a.tag, "--repo", a.repo, "--draft=false")
+        else:
+            sh("gh", "release", "upload", a.tag, os.path.join(d, "manifest.json.minisig"), "--repo", a.repo, "--clobber")
+            sh("gh", "release", "edit", a.tag, "--repo", a.repo, "--draft=false", "--notes", "Signed release %s." % m["version"])
         print("PUBLISHED %s" % a.tag)
     finally:
         shutil.rmtree(d, ignore_errors=True)
