@@ -17,7 +17,7 @@ still visible afterwards: a line in `docs/maps/CHANGELOG.md`, and the agent comm
   `.canvas` (JSON Canvas 1.0) and a Mermaid block inside the note.
 - Viewing in Obsidian 1.15 (installed): Mindmap NextGen reads the outline. Pele draws Mermaid without plugins.
 - The canon lives in the project, under `docs/maps/`, and is versioned in git. Mirror: iCloud vault
-  `lxxvii-obsidian/GBOOST/`.
+  the owner's Obsidian vault, folder `GBOOST/`.
 - Sync runs both ways, without approval. Project → iCloud is a plain copy. If a file in iCloud changed
   (hash differs from the last sync), the MCP never overwrites it blindly. It reads the owner's edit as ops,
   applies them to the canon first, then replays any pending agent ops on top. The owner's edit wins a conflict.
@@ -62,7 +62,7 @@ Spike result (2026-11-12, markmap-lib 0.18.12, the version inside NextGen 1.17.0
 - Checked in a live Obsidian 1.15.0 through `obsidian-cli eval` (reading the plugin's rendered SVG). The outcome
   matches the above: the node shows only "Html", while `%%id%%` and `^id` stay in the labels; a fenced block
   in the same note drops the list. In a separate note, Pele draws `mindmap` (svg `pele pele-mindmap`).
-- The Obsidian CLI (`/Applications/Obsidian.app/Contents/MacOS/obsidian-cli`, turned on in settings) can open
+- The Obsidian CLI (the `obsidian-cli` binary shipped with the Obsidian app, turned on in settings) can open
   notes, run plugin commands (`obsidian-mindmap-nextgen:mindmapnextgen:unpinned`) and run `eval`. The MCP
   and the tests use it to check what is rendered when Obsidian is running. It is optional, not required.
 
@@ -150,7 +150,7 @@ approval for maps), and how to read lint results. The skill calls the MCP. It ne
    (`mcp/mindmap/dist/server.js`; run `npm run build` in `mcp/mindmap` after checkout). Extra tool
    `map_relayout`. Proposals live in server memory and are lost on restart. Mutating tools run one at a time.
 5. Sync with iCloud, plus the conflict test (the file changed on both sides). — **done**. Mirror:
-   `lxxvii-obsidian/GBOOST/maps/`. Every mirror write re-checks the file's hash right before it and refuses
+   the owner's Obsidian vault, folder `GBOOST/maps/`. Every mirror write re-checks the file's hash right before it and refuses
    if the owner changed it. Owner edits win. Lost material goes to the project dir, never the vault:
    `<slug>.md.conflict-<ts>`, `<slug>.canvas.conflict-<ts>` (canvas edits other than moves). iCloud
    placeholders block writes. Git commits of `docs/maps/` are made by the agent session, not by the MCP.

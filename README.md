@@ -5,8 +5,11 @@ keeping the owner's data safe from outside attackers and from the Bot's own mist
 owner's own always-on machine. Plugins are sandboxed WASM components, and anything that cannot be undone
 needs the owner's approval on their phone.
 
-**Status: early design.** Nothing here is ready to install. The repository holds the design and Phase 0
-spikes (throwaway experiments).
+**Status: early design.** The repository holds the design and Phase 0 spikes (throwaway experiments). It runs
+on Windows, macOS and Linux, on a home computer or a VPS.
+
+**Install:** give Grok Bot the link to this repository and ask it to install GBOOST. The Bot follows
+[`INSTALL.md`](INSTALL.md) and asks you only when it needs you. For now this installs the S9 test core.
 
 - Design: [`docs/plans/gboost-method.md`](docs/plans/gboost-method.md)
 - Phase 0 progress: [`docs/plans/phase-0.md`](docs/plans/phase-0.md)

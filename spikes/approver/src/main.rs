@@ -155,8 +155,10 @@ fn asset(ct: &'static str, body: &'static [u8]) -> Response {
 
 #[tokio::main]
 async fn main() {
-    let rp_id = env("APPROVER_RP_ID", "your-mac.your-tailnet.ts.net");
-    let origin = env("APPROVER_ORIGIN", "https://your-mac.your-tailnet.ts.net:8443");
+    let (Ok(rp_id), Ok(origin)) = (std::env::var("APPROVER_RP_ID"), std::env::var("APPROVER_ORIGIN")) else {
+        eprintln!("error: set APPROVER_RP_ID (the HTTPS host name, e.g. <host>.<tailnet>.ts.net) and APPROVER_ORIGIN (https://<that host>[:port])");
+        std::process::exit(2)
+    };
     let port: u16 = env("APPROVER_PORT", "8787").parse().expect("APPROVER_PORT");
     let dir = PathBuf::from(env("APPROVER_STATE_DIR", "state"));
     let sub = env("APPROVER_VAPID_SUB", &origin);

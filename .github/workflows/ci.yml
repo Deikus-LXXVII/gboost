@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        crate: [spikes/bot-client/core, spikes/approver, spikes/mcp-connector]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo test
+        working-directory: ${{ matrix.crate }}
+        run: cargo test --locked
+      - name: end to end (core, fake routine, MCP host)
+        if: matrix.crate == 'spikes/bot-client/core'
+        working-directory: spikes/bot-client
+        run: python scripts/e2e_remote.py "${{ github.workspace }}/spikes/bot-client"

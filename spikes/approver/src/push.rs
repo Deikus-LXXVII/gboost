@@ -1,7 +1,7 @@
 //! Web Push with VAPID. Payload-free: the service worker shows a fixed text, so the push service
 //! learns nothing about the request. Logs the endpoint host only, never the endpoint or any key.
 
-use std::{fs, io::Write, os::unix::fs::OpenOptionsExt, path::{Path, PathBuf}, sync::{Arc, Mutex}, time::Duration};
+use std::{fs, io::Write, path::{Path, PathBuf}, sync::{Arc, Mutex}, time::Duration};
 use web_push::{
     IsahcWebPushClient, SubscriptionInfo, VapidSignatureBuilder, WebPushClient, WebPushError,
     WebPushMessageBuilder,
@@ -18,15 +18,27 @@ pub struct Push {
     subs: Mutex<Vec<SubscriptionInfo>>,
 }
 
+/// Owner-only file. Unix: mode 0600. Windows: the file inherits the user-profile ACL (only that user, SYSTEM
+/// and Administrators), so the state directory must live under the user's profile.
 pub fn write_private(path: &Path, data: &[u8]) -> std::io::Result<()> {
-    let mut f = fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(path)?;
-    f.write_all(data)
+    let mut o = fs::OpenOptions::new();
+    o.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        o.mode(0o600);
+    }
+    o.open(path)?.write_all(data)
 }
 
 pub fn ensure_state_dir(dir: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
-    fs::DirBuilder::new().recursive(true).mode(0o700).create(dir)?;
-    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))
+    fs::create_dir_all(dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
+    }
+    Ok(())
 }
 
 fn b64u(b: &[u8]) -> String {

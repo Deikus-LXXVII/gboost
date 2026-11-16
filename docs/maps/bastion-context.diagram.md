@@ -8,6 +8,9 @@ mindmap
     yukfhw["Owner"]
       w66a0k["Phone approver"]
       ae35p0["Desktop"]
+      92oqnw["GBOOST nodes"]
+        cnxk1n["Primary (owner's computer)"]
+        802w34["Standby (VPS)"]
     7kz9sv["Grok Bot"]
       bu1k30["Bot VM"]
       3es1gd["Grok chat"]
@@ -32,6 +35,6 @@ mindmap
 ## Links
 
 - Phone approver → Phone approval only: approves
-- GBOOST → Routine webhook: wakes the Bot
 - Grok chat → Connector backend: calls GBOOST via connector
 - Grok Bot → GitHub repo: installs from
+- Connector backend → GBOOST nodes: one connector, active node

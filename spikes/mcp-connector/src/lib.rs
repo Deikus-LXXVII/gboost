@@ -33,10 +33,13 @@ pub struct Config {
     pub max_entries: usize,
     /// Rotate requests.log at this size, keeping one old file.
     pub log_max_bytes: u64,
+    /// When set, the fixed client is a public PKCE client (as Grok's connector backend behaves): it may
+    /// omit its secret at /token, and its redirect must equal this URI exactly.
+    pub public_redirect: Option<String>,
 }
 impl Config {
     pub fn new(public_url: String, state_dir: PathBuf, access_ttl_ms: u64) -> Config {
-        Config { public_url, state_dir, access_ttl_ms, allow_dcr: false, max_entries: 2000, log_max_bytes: 10 * 1024 * 1024 }
+        Config { public_url, state_dir, access_ttl_ms, allow_dcr: false, max_entries: 2000, log_max_bytes: 10 * 1024 * 1024, public_redirect: None }
     }
 }
 const LOG_VALUE_MAX: usize = 512;
@@ -406,8 +409,11 @@ struct AuthQ {
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
-fn redirect_ok(c: &Client, uri: &str) -> bool {
-    if c.fixed {
+fn redirect_ok(c: &Client, uri: &str, public_redirect: Option<&str>) -> bool {
+    if c.fixed && public_redirect.is_some() {
+        Some(uri) == public_redirect
+    } else if c.fixed {
+        // Fallback when no public redirect is configured: the confidential fixed client (secret required).
         // The fixed client's callback is unknown until Grok shows it; accept https or loopback, and log it.
         uri.starts_with("https://") || uri.starts_with("http://127.0.0.1") || uri.starts_with("http://localhost")
     } else {
@@ -420,7 +426,7 @@ async fn authorize(State(app): State<App>, Query(q): Query<AuthQ>) -> Response {
     let (Some(cid), Some(ru)) = (q.client_id.clone(), q.redirect_uri.clone()) else { return bad("client_id and redirect_uri required") };
     let mut d = app.data.lock().unwrap();
     match d.clients.get(&cid) {
-        Some(c) if redirect_ok(c, &ru) => {}
+        Some(c) if redirect_ok(c, &ru, app.cfg.public_redirect.as_deref()) => {}
         _ => return bad("unknown client or redirect_uri"),
     }
     // From here errors go back to the client.
@@ -520,7 +526,10 @@ async fn token(State(app): State<App>, headers: HeaderMap, Form(f): Form<HashMap
     match d.clients.get(&cid) {
         None => return json_err(StatusCode::UNAUTHORIZED, "invalid_client", "unknown client"),
         Some(c) => {
-            if let Some(h) = &c.secret_hash {
+            // A public fixed client may omit the secret; a secret that is sent must still be right. This also
+            // covers refresh: as for any public client, the rotated refresh token is then the only credential.
+            let public_ok = c.fixed && app.cfg.public_redirect.is_some() && csec.is_none();
+            if let (Some(h), false) = (&c.secret_hash, public_ok) {
                 if csec.as_deref().map(hash).as_deref() != Some(h.as_str()) {
                     return json_err(StatusCode::UNAUTHORIZED, "invalid_client", "bad client credentials");
                 }

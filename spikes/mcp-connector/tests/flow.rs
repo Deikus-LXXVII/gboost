@@ -295,3 +295,56 @@ async fn oversized_body_refused_and_maps_stay_capped() {
     }
     assert!(t.app.pending_len() <= 3, "pending grew to {}", t.app.pending_len());
 }
+
+#[tokio::test]
+async fn public_fixed_client_needs_exact_redirect_and_may_omit_secret() {
+    let no_secret = |code: &str| format!("grant_type=authorization_code&code={}&redirect_uri={}&code_verifier={}&client_id=", enc(code), enc(RU), enc(VERIFIER));
+    // Off by default: no secret is refused.
+    let t = setup(60_000);
+    let code = get_code(&t).await;
+    let (st, _, _) = send(&t.r, form("/token", format!("{}{}", no_secret(&code), enc(&t.id)), None)).await;
+    assert_eq!(st, StatusCode::UNAUTHORIZED);
+
+    let t = setup_with(60_000, |c| c.public_redirect = Some(RU.into()));
+    // Any other redirect is refused before consent.
+    let ch = B64.encode(Sha256::digest(VERIFIER.as_bytes()));
+    let q = format!("/authorize?response_type=code&client_id={}&redirect_uri={}&code_challenge={}&code_challenge_method=S256", enc(&t.id), enc("https://evil.test/cb"), ch);
+    let (st, _, _) = send(&t.r, Request::get(q).body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    // A wrong secret is still refused.
+    let code = get_code(&t).await;
+    let (st, _, _) = send(&t.r, form("/token", format!("{}{}&client_secret=nope", no_secret(&code), enc(&t.id)), None)).await;
+    assert_eq!(st, StatusCode::UNAUTHORIZED);
+    // No secret, right PKCE and redirect: a working token.
+    let code = get_code(&t).await;
+    let (st, _, b) = send(&t.r, form("/token", format!("{}{}", no_secret(&code), enc(&t.id)), None)).await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    let v: Value = serde_json::from_str(&b).unwrap();
+    let tok = v["access_token"].as_str().unwrap();
+    let (st, _, _) = rpc(&t, Some(tok), serde_json::json!({"jsonrpc":"2.0","id":1,"method":"tools/list"})).await;
+    assert_eq!(st, StatusCode::OK);
+    // Refresh without a secret works (public client); the refresh token rotates.
+    let rt = v["refresh_token"].as_str().unwrap();
+    let body = format!("grant_type=refresh_token&refresh_token={}&client_id={}", enc(rt), enc(&t.id));
+    let (st, _, _) = send(&t.r, form("/token", body.clone(), None)).await;
+    assert_eq!(st, StatusCode::OK);
+    let (st, _, _) = send(&t.r, form("/token", body, None)).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    // An empty secret in a Basic header is a secret, and wrong.
+    let code = get_code(&t).await;
+    let basic = format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("{}:", t.id)));
+    let body = format!("grant_type=authorization_code&code={}&redirect_uri={}&code_verifier={}", enc(&code), enc(RU), enc(VERIFIER));
+    let (st, _, _) = send(&t.r, form("/token", body, Some(basic))).await;
+    assert_eq!(st, StatusCode::UNAUTHORIZED);
+    // Near-miss redirects are refused.
+    for bad in [format!("{RU}/"), RU.replace("https://", "http://"), format!("{RU}?x=1")] {
+        let q = format!("/authorize?response_type=code&client_id={}&redirect_uri={}&code_challenge={}&code_challenge_method=S256", enc(&t.id), enc(&bad), ch);
+        let (st, _, _) = send(&t.r, Request::get(q).body(Body::empty()).unwrap()).await;
+        assert_eq!(st, StatusCode::BAD_REQUEST, "{bad}");
+    }
+    // No secret and a wrong verifier: refused.
+    let code = get_code(&t).await;
+    let body = format!("grant_type=authorization_code&code={}&redirect_uri={}&code_verifier=wrong-wrong-wrong-wrong-wrong-wrong-wrong-12&client_id={}", enc(&code), enc(RU), enc(&t.id));
+    let (st, _, _) = send(&t.r, form("/token", body, None)).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+}

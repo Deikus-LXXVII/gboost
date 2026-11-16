@@ -7,7 +7,7 @@ description: Draw or update a GBOOST mind map in the owner's Obsidian vault (doc
 
 Maps live in `docs/maps/<slug>.md` (the canon, a Markdown outline). The `mindmap` MCP generates
 `<slug>.canvas` and `<slug>.diagram.md` and mirrors all three to the iCloud vault
-`lxxvii-obsidian/GBOOST/maps/`, where the owner views and edits them on a phone.
+`GBOOST/maps/` in the owner's Obsidian vault, where the owner views and edits them on a phone.
 
 Never edit map files by hand: always go through the MCP tools. Map changes need no owner approval
 (owner's decision, 2026-11-12), but every change must pass lint and is logged in `docs/maps/CHANGELOG.md`.

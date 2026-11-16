@@ -8,7 +8,7 @@ It binds to 127.0.0.1 only; HTTPS comes from Tailscale serve/funnel in front of 
 
 ```
 cd spikes/mcp-connector
-BASTION_PUBLIC_URL=https://your-mac.your-tailnet.ts.net:<port> BASTION_PORT=8787 cargo run --release
+BASTION_PUBLIC_URL=https://<host>.<tailnet>.ts.net:<port> BASTION_PORT=8787 cargo run --release
 ```
 
 | Env | Default | Meaning |

@@ -104,7 +104,7 @@ function renderDetail(app, r) {
   const body = el('div', { className: 'body val', textContent: e.body });
   const sentinel = el('div', { style: 'height:1px' });
   body.append(sentinel);
-  const approve = el('button', { textContent: 'Approve (Face ID)', disabled: true });
+  const approve = el('button', { textContent: 'Approve', disabled: true });
   const decline = el('button', { className: 'decline', textContent: 'Decline' });
   const back = el('button', { className: 'decline', textContent: 'Back' });
   const pending = r.status === 'pending';

@@ -7,7 +7,7 @@ async fn main() {
     let public_url = std::env::var("BASTION_PUBLIC_URL").unwrap_or_else(|_| format!("http://127.0.0.1:{port}"));
     let state_dir = std::env::var("BASTION_STATE_DIR").unwrap_or_else(|_| "state".into()).into();
     let ttl: u64 = std::env::var("BASTION_TOKEN_TTL_SECS").ok().and_then(|p| p.parse().ok()).unwrap_or(3600);
-    let (router, app, fresh) = build({ let mut c = Config::new(public_url.clone(), state_dir, ttl * 1000); c.allow_dcr = std::env::var("BASTION_ALLOW_DCR").as_deref() == Ok("1"); c });
+    let (router, app, fresh) = build({ let mut c = Config::new(public_url.clone(), state_dir, ttl * 1000); c.allow_dcr = std::env::var("BASTION_ALLOW_DCR").as_deref() == Ok("1"); c.public_redirect = std::env::var("BASTION_FIXED_PUBLIC_REDIRECT").ok().map(|v| { assert!(v.starts_with("https://"), "BASTION_FIXED_PUBLIC_REDIRECT must be https"); v }); c });
     match fresh {
         Some((id, secret)) => {
             println!("=== First start: OAuth client created (shown once) ===\nClient ID:     {id}\nClient Secret: {secret}\n=====");
