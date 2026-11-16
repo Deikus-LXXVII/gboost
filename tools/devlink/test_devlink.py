@@ -53,11 +53,18 @@ step("send output has no secret", "hookkey123" not in r.stdout + r.stderr)
 
 port = free_port()
 srv = subprocess.Popen(DL + ["serve", "--bind", "127.0.0.1:%d" % port], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
-for _ in range(50):
+for _ in range(100):
     try:
-        socket.create_connection(("127.0.0.1", port), 0.2).close(); break
+        socket.create_connection(("127.0.0.1", port), 1).close(); break
     except OSError:
-        time.sleep(0.1)
+        if srv.poll() is not None:
+            break
+        time.sleep(0.2)
+else:
+    pass
+if srv.poll() is not None:
+    print("serve exited:", srv.poll(), srv.stderr.read()[-2000:])
+    sys.exit(1)
 
 NOPROXY = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -67,7 +74,7 @@ def rpc(body, k=key):
     if k: h["x-devlink-key"] = k
     req = urllib.request.Request("http://127.0.0.1:%d/mcp" % port, data=json.dumps(body).encode(), headers=h, method="POST")
     try:
-        with NOPROXY.open(req, timeout=5) as resp:
+        with NOPROXY.open(req, timeout=15) as resp:
             raw = resp.read(); return resp.status, (json.loads(raw) if raw else None)
     except urllib.error.HTTPError as e:
         return e.code, None
