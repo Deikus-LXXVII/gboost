@@ -774,8 +774,43 @@ Bot never sees an outage.
    plugins, 5.5).
 10. **The release key** (owner, 2026-11-16) is kept on the maintainer's own computer, encrypted, and used
    by one command after CI has built the files; never in CI (P10).
+9a. **Sessions survive an update.** Open sessions are kept in the node's state, so restarting the same
+   node for an update or a rollback does not cost the owner a new session check; only moving to another
+   node does (6.6).
 9. **Bundled programs.** The manifest pins the Tailscale version and its hashes, so Tailscale is updated
    by the same path.
+
+**Rolling back (owner requirement, 2026-11-16).** The automatic rollback in item 5 covers an update that
+fails its check. An update can also pass its check and turn out wrong later; the owner then says "roll
+GBOOST back" and gets the previous version just as safely:
+
+11. **Only to a version this node already ran.** A node keeps the last three versions it installed and
+    verified. Rollback picks one of them from disk; it never downloads an older release. So "versions only
+    go up" (P10) still holds for anything that comes from outside, and nobody can push an old, vulnerable
+    version at a node.
+12. **State that both versions can read.** Every release changes the state schema in two steps: first it
+    only adds (new fields, new tables), and only a later release removes what is no longer used. So the
+    version before can read state written by the version after, and a rollback by one version keeps all
+    data. A rollback across a removal restores the snapshot from item 4; the owner is shown first what
+    would be lost (what changed since that snapshot). The audit log is kept apart and never rolled back.
+13. **Same path as an update.** Rollback uses steps 4 to 6: switch `current`, health check, and if even
+    the old version fails its check, the node stops and tells the owner instead of guessing. With two
+    nodes it rolls one at a time, and two adjacent versions must work together across nodes for the length
+    of the roll. The node also lowers the lowest client version it asks for, so the client can go back too.
+14. **Yanked releases.** If a release proves bad, the maintainer publishes a signed yank notice (same key,
+    own purpose). A node on a yanked version tells the owner and offers the rollback; it does not roll
+    back by itself (the owner's policy is "everything by OK").
+15. **Rehearsed before release.** CI tests every release on real sample state: update from the version
+    before, roll back, update again, on every OS. A release that fails this cannot be signed.
+
+**S11 notes (2026-11-16).** The first install is checked like an update: the package must be listed in a
+manifest signed by the key pinned in the repository (`release/release.pub`, checked with `gboost-release`
+built from that repository) and must carry the same key. A rollback across a schema change first shows
+what would be lost and runs only after a confirmation; it never takes secrets or settings from the
+snapshot (the routine webhook, the console token, current client secrets and revocations stay), and open
+sessions end there (the one case where 9a does not hold). Known limit until phase 1: the maintainer signs
+the bytes CI built after checking hashes, the pinned key inside every package and the tag commit, but
+does not rebuild them; reproducible builds and a local rebuild check close that.
 
 Until release signing exists (phase 1), the test installs update from the repository by `git pull`, a
 build and a restart; that is neither quick nor guarded and is for Phase 0 only.

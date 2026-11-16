@@ -84,6 +84,7 @@ struct ClientRec {
     #[serde(default)]
     revoked_ms: Option<u64>,
 }
+#[derive(Serialize, Deserialize)]
 struct Session {
     id: String,
     client_id: String,
@@ -194,6 +195,8 @@ pub struct App {
     noise: Mutex<Noise>,
     console_token: String,
     http: reqwest::Client,
+    /// The state files read cleanly at start (an absent file is a fresh node). /healthz reports it.
+    state_ok: bool,
 }
 
 fn lk<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -337,6 +340,13 @@ impl App {
             self.event("noise_summary", json!({"requests": c, "window_ms": w}));
         }
     }
+    /// MCP sessions survive a restart of this node (an update or a rollback; plan 6.7 9a).
+    fn save_msessions(&self, d: &Data) {
+        let list: Vec<&Session> = d.msessions.values().collect();
+        if let Err(e) = write_private(&self.cfg.state_dir.join("msessions.json"), &serde_json::to_string(&list).unwrap_or_default()) {
+            self.event("state_write_error", json!({"file": "msessions.json", "detail": e.kind().to_string()}));
+        }
+    }
     fn persist(&self, s: Snap) -> std::io::Result<()> {
         let mut last = lk(&self.save_lock);
         if s.ver <= *last {
@@ -436,13 +446,27 @@ pub fn build(cfg: Config) -> std::io::Result<(Router, Router, Arc<App>)> {
         }
     };
     let mut data = Data::default();
+    let mut state_ok = true;
     if let Ok(t) = std::fs::read_to_string(cfg.state_dir.join("clients.json")) {
-        if let Ok(list) = serde_json::from_str::<Vec<ClientRec>>(&t) {
+        let parsed = serde_json::from_str::<Vec<ClientRec>>(&t);
+        state_ok &= parsed.is_ok();
+        if let Ok(list) = parsed {
             for mut c in list {
                 if c.state == "revoked" && c.revoked_ms.is_none() {
                     c.revoked_ms = Some(now_ms());
                 }
                 data.clients.insert(c.id.clone(), c);
+            }
+        }
+    }
+    if let Ok(t) = std::fs::read_to_string(cfg.state_dir.join("msessions.json")) {
+        if let Ok(list) = serde_json::from_str::<Vec<Session>>(&t) {
+            let now = now_ms();
+            for s in list {
+                let ok = data.clients.get(&s.client_id).map(|c| c.state == "approved").unwrap_or(false);
+                if ok && now < s.expires_ms {
+                    data.msessions.insert(s.client_id.clone(), s);
+                }
             }
         }
     }
@@ -462,6 +486,7 @@ pub fn build(cfg: Config) -> std::io::Result<(Router, Router, Arc<App>)> {
         noise: Mutex::new(Noise { count: 0, last_ms: now_ms() }),
         console_token,
         http,
+        state_ok,
     });
 
     let agent = Router::new()
@@ -476,6 +501,7 @@ pub fn build(cfg: Config) -> std::io::Result<(Router, Router, Arc<App>)> {
         .layer(middleware::from_fn_with_state(app.clone(), access_log))
         .with_state(app.clone());
     let owner = Router::new()
+        .route("/healthz", get(healthz))
         .route("/local/clients", get(list_clients))
         .route("/local/clients/new", post(new_client))
         .route("/local/clients/{id}/approve", post(approve))
@@ -485,6 +511,12 @@ pub fn build(cfg: Config) -> std::io::Result<(Router, Router, Arc<App>)> {
         .layer(middleware::from_fn_with_state(app.clone(), access_log))
         .with_state(app.clone());
     Ok((agent, owner, app))
+}
+
+/// Owner listener (loopback only), no token: the updater's health check. Version only, no state.
+async fn healthz(State(app): State<Arc<App>>) -> Json<Value> {
+    let state_ok = app.state_ok && std::fs::metadata(&app.cfg.state_dir).map(|m| m.is_dir()).unwrap_or(false);
+    Json(json!({"ok": state_ok, "version": std::env::var("GBOOST_VERSION").unwrap_or_else(|_| "dev".into())}))
 }
 
 async fn access_log(State(app): State<Arc<App>>, req: Request, next: Next) -> Response {
@@ -507,6 +539,10 @@ async fn timeout_mw(State(app): State<Arc<App>>, req: Request, next: Next) -> Re
     }
 }
 async fn console_auth(State(app): State<Arc<App>>, req: Request, next: Next) -> Response {
+    // The health check (version only) is the one route without the token: the updater calls it.
+    if req.method() == axum::http::Method::GET && req.uri().path() == "/healthz" {
+        return next.run(req).await;
+    }
     let ok = req.headers().get("x-console-token").and_then(|v| v.to_str().ok()).map(|t| ct_eq(t, &app.console_token)).unwrap_or(false);
     if !ok {
         return err(401, "console token required").into_response();
@@ -756,6 +792,7 @@ fn set_state(app: &App, id: &str, state: &str) -> Res {
             d.sessions.retain(|_, s| s.client_id != id);
             d.msessions.remove(id);
             d.codes.remove(id);
+            app.save_msessions(&d);
         }
         d.snapshot()
     };
@@ -775,6 +812,7 @@ async fn revoke_all(State(app): State<Arc<App>>) -> Json<Value> {
     d.sessions.clear();
     d.msessions.clear();
     d.codes.clear();
+    app.save_msessions(&d);
     drop(d);
     app.event("revoke_all", json!({"sessions": n}));
     Json(json!({"revoked": n}))
@@ -863,13 +901,19 @@ impl App {
         let Some(s) = d.msessions.get_mut(&c.id) else { return Err("") };
         if now >= s.expires_ms {
             d.msessions.remove(&c.id);
+            self.save_msessions(&d);
             return Err("");
         }
         if s.used >= self.cfg.session_budget {
             return Err("GBOOST session call budget exhausted.");
         }
         s.used += 1;
-        Ok(Session { id: s.id.clone(), client_id: s.client_id.clone(), created_ms: s.created_ms, expires_ms: s.expires_ms, used: s.used })
+        let out = Session { id: s.id.clone(), client_id: s.client_id.clone(), created_ms: s.created_ms, expires_ms: s.expires_ms, used: s.used };
+        // Saved on create, revoke and expiry, and every 10 calls: a crash can give back at most 9 calls of budget.
+        if out.used % 10 == 0 {
+            self.save_msessions(&d);
+        }
+        Ok(out)
     }
     fn mcp_state(&self, c: &ClientRec) -> (Option<Session>, bool) {
         let d = self.dat();
@@ -919,6 +963,7 @@ async fn mcp(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectInfo<SocketA
                             } else {
                                 let sid = format!("gbs_{}", rand_b64(6));
                                 d.msessions.insert(c.id.clone(), Session { id: sid.clone(), client_id: c.id.clone(), created_ms: now, expires_ms: now + app.cfg.session_ttl_s * 1000, used: 0 });
+                                app.save_msessions(&d);
                                 drop(d);
                                 app.event("mcp_session_created", json!({"client_id": c.id, "session": sid}));
                                 tool_text("Session open", false)

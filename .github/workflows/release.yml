@@ -1,0 +1,64 @@
+name: release
+
+# A tag v<major>.<minor>.<patch> builds every package and a manifest of their hashes into a DRAFT release.
+# The maintainer then checks and signs the manifest on their own computer (spikes/release/publish.py);
+# the release key is never here (plan P10, 6.7).
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: linux-x86_64 }
+          - { os: ubuntu-24.04-arm, target: linux-arm64 }
+          - { os: macos-latest, target: macos-arm64 }
+          - { os: windows-latest, target: windows-x86_64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: build
+        shell: bash
+        run: |
+          cargo build --release --locked --manifest-path spikes/bot-client/core/Cargo.toml
+          cargo build --release --locked --manifest-path spikes/release/Cargo.toml
+      - name: rehearse update and rollback on this OS
+        shell: bash
+        run: |
+          ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
+          python -I spikes/node-net/test_update.py "spikes/bot-client/core/target/release/gboost-s9-core$ext" "spikes/release/target/release/gboost-release$ext"
+      - name: package
+        shell: bash
+        run: |
+          test -f release/release.pub || { echo "release/release.pub is missing: the maintainer must create the release key first"; exit 1; }
+          ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
+          python spikes/node-net/package.py --version "${GITHUB_REF_NAME#v}" --schema "$(cat release/SCHEMA)" \
+            --target ${{ matrix.target }} --core "spikes/bot-client/core/target/release/gboost-s9-core$ext" \
+            --release-tool "spikes/release/target/release/gboost-release$ext" --pubkey release/release.pub --out dist
+      - uses: actions/upload-artifact@v4
+        with: { name: "pkg-${{ matrix.target }}", path: dist/*.tar.gz }
+
+  draft:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: manifest
+        run: |
+          cargo build --release --locked --manifest-path spikes/release/Cargo.toml
+          spikes/release/target/release/gboost-release manifest dist "${GITHUB_REF_NAME#v}" "$(cat release/SCHEMA)" "$(cat release/MIN_CLIENT 2>/dev/null || echo 0.1.0)"
+      - name: draft release (unsigned until the maintainer signs it)
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/manifest.json --draft --title "GBOOST $GITHUB_REF_NAME" --notes "Draft: waiting for the maintainer's signature."

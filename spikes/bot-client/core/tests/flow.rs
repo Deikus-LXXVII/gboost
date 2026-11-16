@@ -975,3 +975,26 @@ fn assert_owner_only(p: &std::path::Path) {
 fn assert_owner_only(p: &std::path::Path) {
     assert!(p.exists(), "{}", p.display());
 }
+
+#[tokio::test]
+async fn healthz_needs_no_token_and_shows_only_ok_and_version() {
+    let e = env().await;
+    let (c, v) = e.owner_status("GET", "/healthz", None).await;
+    assert_eq!(c, 200);
+    assert_eq!(v["ok"], true);
+    assert!(v.as_object().unwrap().keys().all(|k| k == "ok" || k == "version"), "{v}");
+}
+
+#[tokio::test]
+async fn healthz_not_ok_when_state_is_corrupt() {
+    let dir = std::env::temp_dir().join(format!("s9-corrupt-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("clients.json"), "{not json").unwrap();
+    let (_agent, owner, _app) = gboost_s9_core::build(gboost_s9_core::Config::new(dir.clone())).unwrap();
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = l.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(l, owner.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.unwrap() });
+    let v: serde_json::Value = reqwest::get(format!("http://{addr}/healthz")).await.unwrap().json().await.unwrap();
+    assert_eq!(v["ok"], false, "{v}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

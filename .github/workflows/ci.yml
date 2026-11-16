@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        crate: [spikes/bot-client/core, spikes/approver, spikes/mcp-connector]
+        crate: [spikes/bot-client/core, spikes/approver, spikes/mcp-connector, spikes/release]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +25,13 @@ jobs:
         if: matrix.crate == 'spikes/bot-client/core'
         working-directory: spikes/bot-client
         run: python scripts/e2e_remote.py "${{ github.workspace }}/spikes/bot-client"
+      - name: update and rollback rehearsal (S11)
+        if: matrix.crate == 'spikes/bot-client/core'
+        shell: bash
+        run: |
+          cargo build --locked --manifest-path spikes/release/Cargo.toml
+          ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
+          python -I spikes/node-net/test_update.py "spikes/bot-client/core/target/debug/gboost-s9-core$ext" "spikes/release/target/debug/gboost-release$ext"
       - name: client failover across two cores (S10)
         if: matrix.crate == 'spikes/bot-client/core'
         run: python -I spikes/node-net/test_failover.py "${{ github.workspace }}/spikes/bot-client/core/target/debug/gboost-s9-core${{ runner.os == 'Windows' && '.exe' || '' }}"

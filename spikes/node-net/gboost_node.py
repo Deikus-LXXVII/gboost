@@ -24,12 +24,17 @@ def main():
     p.add_argument("--owner-port", type=int, default=8791)
     p.add_argument("--ts-bin-dir")
     p.add_argument("--login-wait-s", type=int, default=900)
+    p.add_argument("--no-tailscale", action="store_true", help="tests and local use: no tailnet device, loopback only")
+    p.add_argument("--stop-file", help="exit cleanly when this file appears (used by gboost_update.py on every OS)")
     a = p.parse_args()
 
     os.makedirs(a.state, exist_ok=True)
     ts_bin = os.path.expanduser(a.ts_bin_dir) if a.ts_bin_dir else None
-    dev = gboost_net.Device(os.path.join(a.state, "ts"), "gboost-node-" + a.name, bin_dir=ts_bin)
+    dev = None if a.no_tailscale else gboost_net.Device(os.path.join(a.state, "ts"), "gboost-node-" + a.name, bin_dir=ts_bin)
     core = None
+    here = os.path.dirname(os.path.abspath(__file__))
+    vfile = os.path.join(os.path.dirname(here), "VERSION")
+    version = open(vfile).read().strip() if os.path.exists(vfile) else "dev"
 
     def stop(*_):
         sys.exit(0)
@@ -37,14 +42,17 @@ def main():
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     try:
-        with gboost_net.Lock(os.path.join(a.state, "ts.lock")):
-            dev.start()
-        state, info = dev.bring_up(wait_s=30)
-        if state == "NeedsLogin":
+        if dev is None:
+            state, info = "Running", "127.0.0.1:%d" % a.agent_port
+        else:
+            with gboost_net.Lock(os.path.join(a.state, "ts.lock")):
+                dev.start()
+            state, info = dev.bring_up(wait_s=30)
+        if dev is not None and state == "NeedsLogin":
             print("LOGIN " + info, flush=True)
             end = time.time() + a.login_wait_s
             while time.time() < end:
-                state, _, dns = dev.state()
+                state, _, dns = dev.state()  # noqa: F841
                 if state == "Running":
                     info = dns
                     break
@@ -53,7 +61,7 @@ def main():
             sys.exit("error: the tailnet device is %s (login not completed?)" % state)
         print("TAILNET " + info, flush=True)
 
-        env = dict(os.environ, S9_STATE_DIR=a.state, S9_AGENT_BIND="127.0.0.1:%d" % a.agent_port,
+        env = dict(os.environ, GBOOST_VERSION=version, S9_STATE_DIR=a.state, S9_AGENT_BIND="127.0.0.1:%d" % a.agent_port,
                    S9_OWNER_BIND="127.0.0.1:%d" % a.owner_port)
         core = subprocess.Popen([a.core], env=env)
         for _ in range(100):
@@ -66,15 +74,22 @@ def main():
                 time.sleep(0.1)
         else:
             sys.exit("error: the core did not open its agent port")
-        try:
-            dev.serve_https(a.agent_port)
-        except RuntimeError as e:
-            if str(e).startswith("ENABLE "):
-                print(str(e), flush=True)
-                sys.exit("error: the owner must turn on HTTPS for the tailnet (link above), then start again")
-            raise
-        print("URL https://%s/mcp" % info, flush=True)
-        core.wait()
+        if dev is not None:
+            try:
+                dev.serve_https(a.agent_port)
+            except RuntimeError as e:
+                if str(e).startswith("ENABLE "):
+                    print(str(e), flush=True)
+                    sys.exit("error: the owner must turn on HTTPS for the tailnet (link above), then start again")
+                raise
+            print("URL https://%s/mcp" % info, flush=True)
+        else:
+            print("URL http://%s/mcp" % info, flush=True)
+        print("VERSION " + version, flush=True)
+        while core.poll() is None:
+            if a.stop_file and os.path.exists(a.stop_file):
+                break
+            time.sleep(0.5)
     finally:
         if core and core.poll() is None:
             core.terminate()
@@ -82,7 +97,8 @@ def main():
                 core.wait(5)
             except subprocess.TimeoutExpired:
                 core.kill()
-        dev.stop()
+        if dev is not None:
+            dev.stop()
 
 
 if __name__ == "__main__":
