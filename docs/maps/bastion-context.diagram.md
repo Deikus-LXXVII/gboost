@@ -11,6 +11,7 @@ mindmap
       92oqnw["GBOOST nodes"]
         cnxk1n["Primary (owner's computer)"]
         802w34["Standby (VPS)"]
+        0jpudu["Signed updates"]
     7kz9sv["Grok Bot"]
       bu1k30["Bot VM"]
       3es1gd["Grok chat"]

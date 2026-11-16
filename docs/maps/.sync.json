@@ -1,16 +1,16 @@
 {
   "files": {
     "bastion-context.md": {
-      "project": "518ec3b9bed9bff71205fd86c2cac7ddb48a9aae02d24a6a6b2ce949359ee60a",
-      "mirror": "518ec3b9bed9bff71205fd86c2cac7ddb48a9aae02d24a6a6b2ce949359ee60a"
+      "project": "eb9befc7a3bd20122bce847c4fc984a767505d0a02929e13428762f2499310eb",
+      "mirror": "eb9befc7a3bd20122bce847c4fc984a767505d0a02929e13428762f2499310eb"
     },
     "bastion-context.canvas": {
-      "project": "25aed3895bcb0dfbc43522681e8fb4ee20e76be1598a405cdc337018bd6b0d64",
-      "mirror": "25aed3895bcb0dfbc43522681e8fb4ee20e76be1598a405cdc337018bd6b0d64"
+      "project": "6290e6d987829eac29311317a1473ba56db3d06fb3de77aa0dbdd73ce2ab4ac9",
+      "mirror": "6290e6d987829eac29311317a1473ba56db3d06fb3de77aa0dbdd73ce2ab4ac9"
     },
     "bastion-context.diagram.md": {
-      "project": "7b183bd854ad169f845a4d0dafd2de98e7363470178e901497158a85f733f9d6",
-      "mirror": "7b183bd854ad169f845a4d0dafd2de98e7363470178e901497158a85f733f9d6"
+      "project": "de2d7f099b3a9c287b2b6a381b9ab3b30c26240654b42dc27955a82f29034885",
+      "mirror": "de2d7f099b3a9c287b2b6a381b9ab3b30c26240654b42dc27955a82f29034885"
     }
   },
   "maps": {
@@ -38,11 +38,15 @@
         },
         "cnxk1n": {
           "x": 1034,
-          "y": -656
+          "y": -704
         },
         "802w34": {
           "x": 1034,
-          "y": -560
+          "y": -608
+        },
+        "0jpudu": {
+          "x": 1034,
+          "y": -512
         },
         "7kz9sv": {
           "x": 280,

@@ -643,7 +643,8 @@ async fn start_check(app: &App, c: &ClientRec, skip_if_pending: bool) -> Result<
         return Err(err(502, "routine webhook did not accept the session check"));
     }
     guard.armed = false;
-    app.event("session_check_sent", json!({"client_id": c.id, "code_hash": short(&hash)}));
+    let http_status = match &sent { Ok(Ok(r)) => r.status().as_u16(), _ => 0 };
+    app.event("session_check_sent", json!({"client_id": c.id, "code_hash": short(&hash), "http_status": http_status}));
     Ok(Check::Sent(check_id))
 }
 

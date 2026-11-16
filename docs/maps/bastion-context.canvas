@@ -53,7 +53,7 @@
 			"id": "cnxk1n",
 			"type": "text",
 			"x": 1034,
-			"y": -656,
+			"y": -704,
 			"width": 292,
 			"height": 64,
 			"text": "Primary (owner's computer)",
@@ -63,10 +63,20 @@
 			"id": "802w34",
 			"type": "text",
 			"x": 1034,
-			"y": -560,
+			"y": -608,
 			"width": 162,
 			"height": 64,
 			"text": "Standby (VPS)",
+			"color": "4"
+		},
+		{
+			"id": "0jpudu",
+			"type": "text",
+			"x": 1034,
+			"y": -512,
+			"width": 172,
+			"height": 64,
+			"text": "Signed updates",
 			"color": "4"
 		},
 		{
@@ -317,6 +327,16 @@
 			"fromSide": "right",
 			"fromEnd": "none",
 			"toNode": "802w34",
+			"toSide": "left",
+			"toEnd": "none",
+			"color": "4"
+		},
+		{
+			"id": "h-92oqnw-0jpudu",
+			"fromNode": "92oqnw",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "0jpudu",
 			"toSide": "left",
 			"toEnd": "none",
 			"color": "4"

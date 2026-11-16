@@ -14,7 +14,7 @@ Config folder: $GBOOST_CLIENT_HOME, else ~/.gboost-client. Files:
 
 Commands: `gboost_client.py` (serve stdio), `gboost_client.py login`, `gboost_client.py status`.
 """
-import atexit, http.client, json, os, signal, sys, time, urllib.error, urllib.request
+import http.client, json, os, signal, sys, time, urllib.error, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gboost_net  # noqa: E402
@@ -22,6 +22,7 @@ import gboost_net  # noqa: E402
 TIMEOUT_S = float(os.environ.get("GBOOST_TIMEOUT_S", "20"))
 RETRY_PRIMARY_S = float(os.environ.get("GBOOST_RETRY_PRIMARY_S", "60"))
 FAIL_STATUSES = {401, 403, 502, 503, 504}
+WARMUP_S = float(os.environ.get("GBOOST_WARMUP_S", "30"))
 
 
 def home():
@@ -83,6 +84,7 @@ class Client:
         self.init_msg = None  # the host's initialize request, replayed on a new node
         self.down_since = {}
         self.dev = dev
+        self.started = time.time()
         handlers = [NoRedirect()]
         if dev:
             handlers.append(urllib.request.ProxyHandler({"https": dev.proxy_url(), "http": dev.proxy_url()}))
@@ -146,7 +148,18 @@ class Client:
         return fresh + [i for i in range(len(self.nodes)) if i not in fresh]
 
     def send(self, msg):
-        """Forward one message; returns the JSON-RPC response, or None for a notification."""
+        """Forward one message; returns the JSON-RPC response, or None for a notification.
+
+        Right after start the Tailscale device may report Running before it can reach peers; during the
+        first WARMUP_S seconds a message that no node took is retried instead of failing."""
+        while True:
+            resp, delivered = self.send_once(msg)
+            if delivered or not self.dev or time.time() - self.started >= WARMUP_S:
+                return resp
+            self.down_since.clear()
+            time.sleep(1.5)
+
+    def send_once(self, msg):
         is_init = msg.get("method") == "initialize"
         if is_init:
             self.init_msg = msg
@@ -163,8 +176,8 @@ class Client:
                     self.active = i
                 self.down_since.pop(i, None)
                 if "id" not in msg:
-                    return None
-                return body if body is not None else error(msg, -32000, "GBOOST node answered %d with no body" % st)
+                    return None, True
+                return (body if body is not None else error(msg, -32000, "GBOOST node answered %d with no body" % st)), True
             except NodeFailed as e:
                 last = str(e)
                 self.down_since[i] = time.time()
@@ -173,8 +186,8 @@ class Client:
                     self.active = None
                 log("node %d failed: %s" % (i, last))
         if "id" not in msg:
-            return None
-        return error(msg, -32000, "No GBOOST node is reachable (%s).%s" % (last, self.login_hint()))
+            return None, False
+        return error(msg, -32000, "No GBOOST node is reachable (%s).%s" % (last, self.login_hint())), False
 
 
 def error(msg, code, text):
@@ -195,9 +208,10 @@ def serve():
     dev = None
     if (cfg.get("tailscale") or {}).get("enabled"):
         dev = device(cfg)
+        # The device is shared: the host may run several client processes, and it outlives each of them
+        # (the next start adopts it), so no process stops it on exit.
         with gboost_net.Lock(os.path.join(home(), "ts.lock")):
             dev.start()
-        atexit.register(dev.stop)
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
         state, info = dev.bring_up(wait_s=10)
         if state == "NeedsLogin":
@@ -229,7 +243,6 @@ def cmd_login():
     dev = device(cfg)
     with gboost_net.Lock(os.path.join(home(), "ts.lock")):
         dev.start()
-    atexit.register(dev.stop)
     state, info = dev.bring_up(wait_s=20)
     if state == "Running":
         print("RUNNING " + (info or ""), flush=True)

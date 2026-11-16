@@ -15,6 +15,7 @@ links:
   - GBOOST nodes <!-- id:92oqnw note:"State encrypted under a passkey-released key on every node. Any OS (Windows, macOS, Linux) or a VPS. Standby enters limited mode by itself when the primary drops; full takeover after one biometric approval; hands back when the primary returns (gboost-method.md 6.5-6.6)." -->
     - Primary (owner's computer) <!-- id:cnxk1n -->
     - Standby (VPS) <!-- id:802w34 -->
+    - Signed updates <!-- id:0jpudu -->
 - Grok Bot <!-- id:7kz9sv color:1 -->
   - Bot VM <!-- id:bu1k30 -->
   - Grok chat <!-- id:3es1gd -->

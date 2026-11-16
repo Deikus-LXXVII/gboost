@@ -737,6 +737,49 @@ rotates the state key, and lists the credentials to revoke at their services.
 | Owner's VPS node (D10) | Bot with Mac command access; A1, A2 | Grok's "ask every time" only | Root on the VPS at any time; during a failover the scoped accounts |
 | Recovery by passkey sync (R1) | Outside attacker; A4 | Platform account security | Whoever takes over the Apple or Google account can approve |
 
+### 6.7 Updates (owner requirement, 2026-11-16)
+
+GBOOST must update easily, quickly and reliably. Easy: one sentence to the Bot ("update GBOOST"), or
+nothing at all for patch releases. Quick: no compiling on the owner's machines; an update takes seconds,
+not a build. Reliable: an update that fails puts the old version back by itself, and with two nodes the
+Bot never sees an outage.
+
+1. **Release.** A version tag makes CI build the core, the node launcher and the client for every
+   supported OS and CPU, and write a manifest: version, state schema version, the lowest client version
+   it accepts, and the SHA-256 of every file. The maintainer checks the manifest and signs it offline with
+   the release key (P10: the key is never in CI). The signed manifest and the files are a GitHub release.
+2. **Check.** Each node checks the owner's repository daily (and when asked). It accepts only a manifest
+   signed by the pinned release key, for a higher version (versions only go up, P10), and only files whose
+   hashes match.
+3. **Install side by side.** The new version goes into `versions/<version>/` next to the running one.
+   Nothing running is touched yet.
+4. **Switch and check.** The node stops taking new calls, records the state schema, takes a snapshot of
+   the state if the schema changes, points `current` at the new version in one atomic step, and restarts
+   under its service manager. It must answer its own health check and self-test within 30 seconds.
+5. **Roll back by itself.** If the check fails, the node points `current` back, restores the snapshot
+   if one was taken, restarts the old version and tells the owner what failed. The previous version is
+   always kept until the next update succeeds.
+6. **Several nodes, no outage.** The standby updates first. Then the primary hands over to it (planned
+   failover), updates, and takes over again. The client on the Bot's computer moves between nodes on its
+   own (S10), so the Bot keeps working. With one node, calls wait out a restart of a few seconds and the
+   client retries them.
+7. **The client.** It is small and has no state but its key and Tailscale device. A node reports the
+   lowest client version it accepts; when the client is older, it fetches the client from the same signed
+   release, verifies it, keeps the previous copy, and restarts. The Bot can also run
+   `gboost_client.py update`.
+8. **Who decides.** A setting on the owner's core. Default (owner, 2026-11-16): nothing installs by
+   itself; the node tells the owner a new version exists and waits for the owner's OK in chat. Owners may
+   switch patch releases to install by themselves after a soak period. A release that widens what GBOOST
+   may do (new effects, hosts, permissions) is always a T4 approval on the phone that shows the change (as
+   plugins, 5.5).
+10. **The release key** (owner, 2026-11-16) is kept on the maintainer's own computer, encrypted, and used
+   by one command after CI has built the files; never in CI (P10).
+9. **Bundled programs.** The manifest pins the Tailscale version and its hashes, so Tailscale is updated
+   by the same path.
+
+Until release signing exists (phase 1), the test installs update from the repository by `git pull`, a
+build and a restart; that is neither quick nor guarded and is for Phase 0 only.
+
 ## 7. Where the priorities conflict
 
 | Conflict | Resolution | What it costs |

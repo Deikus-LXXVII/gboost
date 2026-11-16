@@ -17,6 +17,7 @@ Spikes live in `spikes/<name>/`. They are throwaway code that answers one questi
 | S7 | Two nodes behind **one** connector: one Grok connector reaches whichever node is active, before and after a switch. First FD2 (one Tailscale service name), then FD3 (owner's domain, DNS switched, token scoped to one record) if FD2 fails. Also the approver across two nodes: cached start with the primary down, cross-origin call, push from the second node (plan 6.6) | F18, F19, F16 | Yes: the second node (the S6 server can serve), add the connector in Grok and run prompts across a switch; for FD3 a domain and a scoped DNS token. If neither FD2 nor FD3 works: owner stop point (D13) | planned |
 | S8 | Windows service under a virtual account with TPM sealing, the WASM host and Tailscale serve; Grok desktop command access on Windows and Linux; a macOS daemon using a Secure Enclave key with nobody logged in (plan 6.5) | F20, F21 | Yes: a Windows machine; the Mac admin password in the system dialog for the daemon test | planned |
 | S10 | Tailscale inside GBOOST: every GBOOST process (node core, client on the Bot's VM) runs its own userspace `tailscaled` with its own state, no root, separate from any system Tailscale. The install shows the owner a login link. A small stdio client on the Bot's VM is the one `gboost` connector and forwards MCP to the live node over the tailnet, failing over by itself | One connector without a domain or tailnet admin setup (front door); F18 | Yes: open the login links; the Bot adds the Command connector; a second node for failover | in progress |
+| S11 | Updates (plan 6.7): CI builds the core, launcher and client per OS on a version tag and writes a manifest of hashes; the maintainer signs it offline; a node installs side by side, switches, health-checks and rolls back by itself; the client updates from the same release. Includes a deliberately broken release to prove the rollback | 6.7 | Yes: the owner signs the first release on their computer and says OK to the update in chat | planned |
 
 S1 and S2 run now. S3 to S8 are stop points: the agent prepares everything, then the owner acts.
 
@@ -103,6 +104,9 @@ S1 and S2 run now. S3 to S8 are stop points: the agent prepares everything, then
   without root in userspace mode with a SOCKS5 listener; netcheck: UDP works, IPv4 only, hard NAT (traffic
   likely through DERP, nearest relay about 5 ms); `tailscale up` prints a login link. Not done: joining
   (needs the owner: interactive login or an auth key). Technically feasible; next is a prototype client.
+- 2026-11-16 (owner): updates must be easy, quick and reliable (plan 6.7). Release key on the owner's own
+  computer, encrypted, never in CI. Default policy: nothing installs by itself; every update waits for the
+  owner's OK in chat. Spike S11 builds this.
 - 2026-11-13 (owner, second round): plan revised for phone first, platforms and nodes (merged from
   `gboost-nodes-phone.md`; plan D10 to D15). Phone-only install by an owner-pasted cloud-init block and an
   owner-made enrolment code; the Bot never logs in there. The owner's own nodes: the Bot installs the primary
