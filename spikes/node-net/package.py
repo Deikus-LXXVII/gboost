@@ -27,10 +27,14 @@ def main():
         info.size, info.mode, info.mtime = len(data), mode, 0
         t.addfile(info, io.BytesIO(data))
 
+    pub = open(a.pubkey, "rb").read()
+    if b"\r" in pub:
+        # Every package must carry the exact bytes of the pinned key (publish.py compares them).
+        sys.exit("error: %s has CRLF line endings (a checkout converted it); it must be byte-identical everywhere" % a.pubkey)
     with tarfile.open(out, "w:gz") as t:
         add_bytes(t, "VERSION", (a.version + "\n").encode())
         add_bytes(t, "SCHEMA", (a.schema + "\n").encode())
-        add_bytes(t, "release.pub", open(a.pubkey, "rb").read())
+        add_bytes(t, "release.pub", pub)
         add_bytes(t, "bin/gboost-s9-core" + exe, open(a.core, "rb").read(), 0o755)
         add_bytes(t, "bin/gboost-release" + exe, open(a.release_tool, "rb").read(), 0o755)
         for f in PY:

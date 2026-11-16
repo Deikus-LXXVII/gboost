@@ -1,0 +1,2 @@
+# Release files are packaged byte for byte; never convert line endings on checkout (Windows CI).
+release/** -text
