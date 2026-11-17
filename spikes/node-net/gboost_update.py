@@ -210,6 +210,23 @@ class Updater:
         except (OSError, ValueError, KeyError, TypeError):
             return None, None
 
+    def login_line(self):
+        """The node's last `LOGIN <url>` line in launcher.out, if it printed one after the last start."""
+        try:
+            start_at = int(open(self.p("launcher.start")).read().strip())
+        except (OSError, ValueError):
+            return None  # no record of where this start began: never trust an old line
+        try:
+            with open(self.p("launcher.out"), "rb") as f:
+                f.seek(0, 2)
+                end = f.tell()
+                f.seek(max(start_at, end - 16384))
+                tail = f.read().decode("utf-8", "replace").splitlines()
+        except OSError:
+            return None
+        lines = [x for x in tail if x.startswith(("LOGIN ", "URL ", "TAILNET "))]
+        return lines[-1] if lines and lines[-1].startswith("LOGIN ") else None
+
     def write_launchers(self):
         for name, script, extra in (("gboost-client.py", "gboost_client.py", "[]"),
                                     ("gboost-update.py", "gboost_update.py", repr(["--root", self.root]))):
@@ -259,6 +276,11 @@ class Updater:
             os.remove(stop_file)
         except FileNotFoundError:
             pass
+        try:
+            start_at = os.path.getsize(self.p("launcher.out"))
+        except OSError:
+            start_at = 0
+        write_file_atomic(self.p("launcher.start"), str(start_at))  # login_line() reads only what follows
         fd = os.open(self.p("launcher.out"), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         # Windows: DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, so closing the console does not end the node.
         kw = {"creationflags": 0x00000008 | 0x00000200} if os.name == "nt" else {"start_new_session": True}
@@ -714,6 +736,12 @@ def main():
                 if not u.recover():
                     u.start()
                 ok, why = u.healthy(u.current())
+                login = u.login_line() if not ok and u.alive() else None
+                if login:
+                    # A new node waits (up to 15 min) for the owner's tailnet login: not a failure.
+                    u.say(login)
+                    u.say("WAITING %s is running and waits for the tailnet login above; run start again after it" % u.current())
+                    sys.exit(0)
                 u.say(("RUNNING " if ok else "UNHEALTHY ") + str(u.current()) + ("" if ok else " (%s)" % why))
                 sys.exit(0 if ok else 1)
             elif a.cmd == "stop":

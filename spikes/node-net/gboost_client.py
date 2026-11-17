@@ -160,7 +160,11 @@ class Client:
                 return self.dev.proxy_port != before
             log("no node reachable and the tailnet device is %s; restarting it" % health)
             open(mark, "w").close()
-            self.dev.restart()
+            try:
+                self.dev.restart()
+            except Exception:
+                os.remove(mark)  # the restart did not happen: let the next call try again
+                raise
             self.dev.bring_up(wait_s=10)
         return True
 

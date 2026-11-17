@@ -104,9 +104,7 @@ class Device:
         self.proxy_port = free_port()
         with open(self.log_path, "ab") as log:
             self.proc = subprocess.Popen(
-                [self.tailscaled, "--tun=userspace-networking", "--statedir=" + self.state_dir,
-                 "--socket=" + self.socket, "--port=0",
-                 "--outbound-http-proxy-listen=127.0.0.1:%d" % self.proxy_port]
+                self._argv() + ["--outbound-http-proxy-listen=127.0.0.1:%d" % self.proxy_port]
                 # Windows: a per-user daemon on our own named pipe, no service, no admin (Tailscale >= 1.104;
                 # docs/research/windows-userspace-tailscale.md). Not yet run on Windows.
                 + (["--windows-mode=dev"] if os.name == "nt" else []),
@@ -186,35 +184,81 @@ class Device:
     def online(self):
         return self.health() == "online"
 
+    def _argv(self):
+        """The exact argv this class starts tailscaled with (see start())."""
+        return [self.tailscaled, "--tun=userspace-networking", "--statedir=" + self.state_dir,
+                "--socket=" + self.socket, "--port=0"]
+
+    @staticmethod
+    def _alive(pid):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
     def _our_daemon(self, pid):
-        """True only if `pid` runs tailscaled with exactly our --statedir (PIDs get reused)."""
+        """True only if `pid` runs exactly the tailscaled command this class starts for this state folder
+        (PIDs get reused). Linux: /proc/<pid>/cmdline, NUL-separated, compared argument by argument (works with
+        BusyBox too). macOS and other Unix: `ps -o command=` compared as an exact prefix of the whole command
+        line, so spaces inside paths cannot split or fake an argument. Windows: never (no safe check yet)."""
         if os.name == "nt":
-            return False  # no safe check here yet: never kill on Windows
-        r = subprocess.run(["ps", "-o", "args=", "-p", str(pid)], capture_output=True, text=True)
-        args = r.stdout.split()
-        return bool(args) and os.path.basename(args[0]) == "tailscaled" and ("--statedir=" + self.state_dir) in args
+            return False
+        want = self._argv()
+        cmdline = "/proc/%d/cmdline" % pid
+        if os.path.exists("/proc/self/cmdline"):
+            try:
+                with open(cmdline, "rb") as f:
+                    got = f.read().split(b"\0")
+            except OSError:
+                return False
+            got = [a.decode("utf-8", "surrogateescape") for a in got if a != b""]
+            return got[:len(want)] == want
+        r = subprocess.run(["ps", "-ww", "-o", "command=", "-p", str(pid)], capture_output=True, text=True)
+        line = r.stdout.strip()
+        prefix = " ".join(want)
+        return line == prefix or line.startswith(prefix + " ")
 
     def restart(self):
         """Replace a hung or offline tailscaled (ours, possibly started by another GBOOST process sharing this
-        state folder). Call under a Lock. Kills only a process proven to be ours, and starts a new one only
-        once the old one is gone; otherwise raises and leaves everything as it was."""
+        state folder). Call under a Lock. Kills only a process proven to be ours; if the recorded process is
+        already gone, just starts a new one; a live process that is not ours (or cannot be checked) is left
+        alone and this raises."""
         try:
             pid = int(open(os.path.join(self.state_dir, "tailscaled.pid")).read().strip())
         except (OSError, ValueError):
-            raise RuntimeError("no record of the running tailscaled; not restarting it")
-        if not self._our_daemon(pid):
-            raise RuntimeError("the recorded tailscaled is not ours or cannot be checked here; not restarting it")
-        os.kill(pid, 15)
-        for _ in range(50):
+            pid = None
+        if pid and self._alive(pid):
             if not self._our_daemon(pid):
-                break
-            time.sleep(0.1)
-        else:
-            if self._our_daemon(pid):  # checked again right before the hard kill
-                os.kill(pid, 9)
-                time.sleep(0.5)
-        if self._our_daemon(pid):
-            raise RuntimeError("the old tailscaled did not exit; not starting a second one")
+                raise RuntimeError("the recorded tailscaled is not ours or cannot be checked here; not restarting it")
+            try:
+                os.kill(pid, 15)
+            except ProcessLookupError:
+                pass
+            for _ in range(50):
+                if not self._alive(pid) or not self._our_daemon(pid):
+                    break
+                time.sleep(0.1)
+            else:
+                if self._our_daemon(pid):  # checked again right before the hard kill
+                    try:
+                        os.kill(pid, 9)
+                    except ProcessLookupError:
+                        pass
+                    time.sleep(0.5)
+            if self._alive(pid) and self._our_daemon(pid):
+                raise RuntimeError("the old tailscaled did not exit; not starting a second one")
+        elif pid is None:
+            try:
+                self.status()  # something answers on our socket but we have no record of it: leave it
+                raise RuntimeError("no record of the running tailscaled; not restarting it")
+            except RuntimeError as e:
+                if "no record" in str(e):
+                    raise
+            except Exception:
+                pass  # nothing answers: start a fresh one
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
         self.proc = None
